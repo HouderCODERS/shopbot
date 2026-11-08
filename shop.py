@@ -111,13 +111,12 @@ async def change_message(message: types.Message, text: str, keyboard: InlineKeyb
 @dp.message(Command("start"))
 async def start(message: types.Message):
     save_user(message.from_user)
-        await message.answer(
+    await message.answer(
         "👋 <b>Добро пожаловать в магазин!</b>\n\n"
         "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @s3rp3ntcoders\n\n"
         "Выберите действие:",
         reply_markup=main_menu()
     )
-
 # === СЕКРЕТНАЯ КОМАНДА /menu ===
 @dp.message(Command("menu"))
 async def admin_menu_command(message: types.Message):
