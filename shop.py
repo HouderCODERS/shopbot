@@ -16,7 +16,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
 BOT_TOKEN = "9232358495:AAHAAXXqACqM4-RIDuS1Yxkb2PHOmVH9ZN0"
-ADMIN_ID = 8808258682 # ТВОЙ ID
+ADMIN_ID = 8808258682 # ТВОЙ ID (только для /menu)
 SELLER_TG = "s3rp3ntcoders"
 SUPPORT_TG = "iserpentt"
 # ======================
@@ -31,7 +31,7 @@ class AdminState(StatesGroup):
     waiting_broadcast = State()
     waiting_key = State()
 
-# === БАЗА ДАННЫХ (для Bothost) ===
+# === БАЗА ДАННЫХ ===
 data_dir = Path(os.environ.get("DATA_DIR", "."))
 data_dir.mkdir(parents=True, exist_ok=True)
 db_path = data_dir / "shop.db"
@@ -282,7 +282,7 @@ async def admin_keys(callback: types.CallbackQuery):
         return
 
     text = "🔑 <b>Созданные ключи:</b>\n\n"
-    for k in keys[-20:]: # Последние 20
+    for k in keys[-20:]:
         text += f"<code>{k['key_code']}</code> — до {k['date_until']}\n"
 
     await callback.message.edit_text(text, reply_markup=admin_main_menu())
@@ -491,33 +491,30 @@ async def sent_gift(callback: types.CallbackQuery):
     await callback.answer()
     parts = callback.data.split("_", 3)
     price, gift_name, sender_username = parts[1], parts[2], parts[3]
-    buyer_id = callback.from_user.id
-    buyer_username = callback.from_user.username or str(buyer_id)
-    await change_message(callback.message, "⏳ <b>Ожидайте подтверждения от продавца...</b>")
     
-    admin_text = f"🔔 <b>Покупатель отправил подарок!</b>\n\nПокупатель: @{buyer_username} (ID: <code>{buyer_id}</code>)\nПодарок: {gift_name}\nЦена: {price} ⭐"
-    admin_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"approve_{buyer_id}")],
-        [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{buyer_id}")]
-    ])
-    try: await bot.send_message(ADMIN_ID, admin_text, reply_markup=admin_kb)
-    except: pass
-
-@dp.callback_query(F.data.startswith("approve_"))
-async def approve_gift(callback: types.CallbackQuery):
-    await callback.answer()
-    buyer_id = int(callback.data.split("_")[1])
-    await callback.message.edit_text(f"✅ Сделка подтверждена.")
-    try: await bot.send_message(buyer_id, "✅ <b>Продавец подтвердил получение подарка!</b>")
-    except: pass
-
-@dp.callback_query(F.data.startswith("reject_"))
-async def reject_gift(callback: types.CallbackQuery):
-    await callback.answer()
-    buyer_id = int(callback.data.split("_")[1])
-    await callback.message.edit_text(f"❌ Сделка отклонена.")
-    try: await bot.send_message(buyer_id, "❌ <b>Продавец не получил подарок.</b>")
-    except: pass
+    # Покупателю пишем, что всё ок
+    await change_message(
+        callback.message, 
+        f"✅ <b>Оффер успешно завершен!</b>\n\n"
+        f"Подарок {gift_name} передан пользователю @{sender_username}.\n"
+        f"Ожидайте поступления {price} ⭐ на ваш баланс."
+    )
+    
+    # Продавцу (тому, кто создал оффер) приходит уведомление
+    try:
+        cur.execute("SELECT user_id FROM users WHERE username = ?", (sender_username,))
+        seller_row = cur.fetchone()
+        if seller_row:
+            seller_id = seller_row['user_id']
+            await bot.send_message(
+                seller_id, 
+                f"🎉 <b>Ваш оффер выкуплен!</b>\n\n"
+                f"Покупатель отправил вам {gift_name}.\n"
+                f"Сумма: {price} ⭐\n\n"
+                f"Проверьте свой профиль в Telegram."
+            )
+    except Exception as e:
+        print(f"Ошибка уведомления продавца: {e}")
 
 @dp.callback_query(F.data == "decline_offer")
 async def decline(callback: types.CallbackQuery):
