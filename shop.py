@@ -33,8 +33,14 @@ class AdminState(StatesGroup):
 
 # === БАЗА ДАННЫХ ===
 data_dir = Path(os.environ.get("DATA_DIR", "."))
-data_dir.mkdir(parents=True, exist_ok=True)
-db_path = data_dir / "shop.db"
+try:
+    data_dir.mkdir(parents=True, exist_ok=True)
+    db_path = data_dir / "shop.db"
+    test_file = data_dir / ".test_write"
+    test_file.touch()
+    test_file.unlink()
+except Exception:
+    db_path = Path("shop.db")
 
 def get_db():
     conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -226,6 +232,16 @@ async def process_extend_days(message: types.Message, state: FSMContext):
     new_date_str = new_date.strftime("%Y-%m-%d")
     cur.execute("UPDATE users SET sub_until = ? WHERE user_id = ?", (new_date_str, user_id))
     conn.commit()
+
+    # ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ ЮЗЕРУ
+    try:
+        await bot.send_message(
+            user_id, 
+            f"👑 <b>Администратор продлил вашу подписку!</b>\n\n"
+            f"Теперь она активна до: <b>{new_date_str}</b>"
+        )
+    except: pass
+
     await message.answer(f"✅ Продлено до {new_date_str}.", reply_markup=admin_main_menu())
 
 @dp.callback_query(F.data.startswith("admin_revoke_"))
@@ -235,6 +251,15 @@ async def admin_revoke(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[2])
     cur.execute("UPDATE users SET sub_until = NULL WHERE user_id = ?", (user_id,))
     conn.commit()
+
+    # ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ ЮЗЕРУ
+    try:
+        await bot.send_message(
+            user_id, 
+            "❌ <b>Ваша подписка была отменена администратором.</b>"
+        )
+    except: pass
+
     await callback.answer("Подписка забрана.", show_alert=True)
 
 # === АДМИН: КЕЙГЕН ===
@@ -330,9 +355,19 @@ async def process_gift(message: types.Message, state: FSMContext):
     new_date = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
     cur.execute("UPDATE users SET sub_until = ? WHERE user_id = ?", (new_date, user_id))
     conn.commit()
+
+    # ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ ЮЗЕРУ
+    try:
+        await bot.send_message(
+            user_id, 
+            f"👑 <b>Администратор выдал вам подписку!</b>\n\n"
+            f"Она активна до: <b>{new_date}</b>"
+        )
+    except: pass
+
     await message.answer(f"✅ Выдано до {new_date}.", reply_markup=admin_main_menu())
 
-# === АДМИН: РАССЫЛКА (ИСПРАВЛЕННАЯ) ===
+# === АДМИН: РАССЫЛКА ===
 @dp.callback_query(F.data == "admin_broadcast")
 async def admin_broadcast(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -359,7 +394,7 @@ async def process_broadcast(message: types.Message, state: FSMContext):
         try:
             await bot.send_message(u['user_id'], text)
             success += 1
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.05) 
         except Exception:
             failed += 1
     
