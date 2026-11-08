@@ -3,6 +3,7 @@ import re
 import sqlite3
 import datetime
 import os
+from pathlib import Path
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 from aiogram.filters import Command
@@ -13,7 +14,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
 BOT_TOKEN = "9232358495:AAHAAXXqACqM4-RIDuS1Yxkb2PHOmVH9ZN0" 
-ADMIN_ID = 8808258682 # ТВОЙ ID (узнать можно у @userinfobot)
+ADMIN_ID = 8808258682 # ТВОЙ ID
 SELLER_TG = "s3rp3ntcoders" 
 SUPPORT_TG = "iserpentt" 
 # ======================
@@ -24,17 +25,22 @@ dp = Dispatcher()
 class KeyState(StatesGroup):
     waiting_for_key = State()
 
-# === ИСПРАВЛЕНИЕ ДЛЯ ХОСТИНГА (база не будет удаляться) ===
-# На Bothost (и некоторых других хостингах) корневая папка стирается. 
-# Сохраняем базу в папку данных, если она есть, иначе локально.
-data_dir = os.environ.get("DATA_DIR", "/app/data")
+# === ГЛАВНОЕ ИСПРАВЛЕНИЕ ДЛЯ BOTHOST ===
+# Bothost сохраняет данные ТОЛЬКО в /app/data. 
+# Если писать в "shop.db" рядом со скриптом — файл удалится при рестарте.
+data_dir = Path(os.environ.get("DATA_DIR", "/app/data"))
 try:
-    os.makedirs(data_dir, exist_ok=True)
-    db_path = os.path.join(data_dir, "shop.db")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    db_path = data_dir / "shop.db"
     conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.cursor().execute("SELECT 1") # Проверка, что база открылась
-except:
-    conn = sqlite3.connect("shop.db", check_same_thread=False) # Fallback для ПК
+    # Проверяем, что запись работает
+    conn.execute("CREATE TABLE IF NOT EXISTS _test (id INTEGER)")
+    conn.execute("DROP TABLE _test")
+    conn.commit()
+    print(f"База данных: {db_path}")
+except Exception as e:
+    print(f"Ошибка записи в {data_dir}: {e}. Использую локальную папку.")
+    conn = sqlite3.connect("shop.db", check_same_thread=False)
 
 cur = conn.cursor()
 cur.execute("""
