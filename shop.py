@@ -16,7 +16,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
 BOT_TOKEN = "9232358495:AAHAAXXqACqM4-RIDuS1Yxkb2PHOmVH9ZN0"
-ADMIN_ID = 8808258682 # ТВОЙ ID (только для /menu)
+ADMIN_ID = 8808258682 # ТВОЙ ID
 SELLER_TG = "s3rp3ntcoders"
 SUPPORT_TG = "iserpentt"
 # ======================
@@ -332,7 +332,7 @@ async def process_gift(message: types.Message, state: FSMContext):
     conn.commit()
     await message.answer(f"✅ Выдано до {new_date}.", reply_markup=admin_main_menu())
 
-# === АДМИН: РАССЫЛКА ===
+# === АДМИН: РАССЫЛКА (ИСПРАВЛЕННАЯ) ===
 @dp.callback_query(F.data == "admin_broadcast")
 async def admin_broadcast(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -353,14 +353,22 @@ async def process_broadcast(message: types.Message, state: FSMContext):
     users = cur.fetchall()
     
     success = 0
+    failed = 0
+    
     for u in users:
         try:
             await bot.send_message(u['user_id'], text)
             success += 1
             await asyncio.sleep(0.05)
-        except: pass
+        except Exception as e:
+            failed += 1
     
-    await message.answer(f"✅ Рассылка завершена. Доставлено {success} из {len(users)}.", reply_markup=admin_main_menu())
+    await message.answer(
+        f"✅ <b>Рассылка завершена!</b>\n\n"
+        f"📤 Отправлено: {success}\n"
+        f"❌ Не доставлено: {failed}",
+        reply_markup=admin_main_menu()
+    )
 
 # === АДМИН: СКАЧАТЬ БАЗУ ===
 @dp.callback_query(F.data == "admin_db")
@@ -492,7 +500,6 @@ async def sent_gift(callback: types.CallbackQuery):
     parts = callback.data.split("_", 3)
     price, gift_name, sender_username = parts[1], parts[2], parts[3]
     
-    # Покупателю пишем, что всё ок
     await change_message(
         callback.message, 
         f"✅ <b>Оффер успешно завершен!</b>\n\n"
@@ -500,7 +507,6 @@ async def sent_gift(callback: types.CallbackQuery):
         f"Ожидайте поступления {price} ⭐ на ваш баланс."
     )
     
-    # Продавцу (тому, кто создал оффер) приходит уведомление
     try:
         cur.execute("SELECT user_id FROM users WHERE username = ?", (sender_username,))
         seller_row = cur.fetchone()
