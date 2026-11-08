@@ -16,7 +16,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
 BOT_TOKEN = "9232358495:AAHAAXXqACqM4-RIDuS1Yxkb2PHOmVH9ZN0"
-ADMIN_ID = 8808258682 # ТВОЙ ID
+ADMIN_ID = 8808258682
 SELLER_TG = "s3rp3ntcoders"
 SUPPORT_TG = "iserpentt"
 # ======================
@@ -360,7 +360,7 @@ async def process_broadcast(message: types.Message, state: FSMContext):
             await bot.send_message(u['user_id'], text)
             success += 1
             await asyncio.sleep(0.05)
-        except Exception as e:
+        except Exception:
             failed += 1
     
     await message.answer(
