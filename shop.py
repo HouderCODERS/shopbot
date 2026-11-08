@@ -15,8 +15,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
-BOT_TOKEN = "9126496920:AAH3R7wayQ6cUE0JWLt3SVDSuOSq34gD0NA"
-ADMIN_ID = 8808258682 # Твой ID
+BOT_TOKEN = "9232358495:AAHAAXXqACqM4-RIDuS1Yxkb2PHOmVH9ZN0"
+ADMIN_ID = 8808258682 # ТВОЙ ID
 SELLER_TG = "s3rp3ntcoders"
 SUPPORT_TG = "iserpentt"
 # ======================
@@ -26,12 +26,12 @@ dp = Dispatcher()
 
 class AdminState(StatesGroup):
     waiting_days = State()
-    waiting_key = State()
     waiting_keygen_days = State()
     waiting_gift_id = State()
     waiting_broadcast = State()
+    waiting_key = State()
 
-# === БАЗА ДАННЫХ ===
+# === БАЗА ДАННЫХ (для Bothost) ===
 data_dir = Path(os.environ.get("DATA_DIR", "."))
 data_dir.mkdir(parents=True, exist_ok=True)
 db_path = data_dir / "shop.db"
@@ -111,11 +111,9 @@ async def start(message: types.Message):
 @dp.message(Command("menu"))
 async def admin_menu_command(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        return # игнорируем всех, кроме тебя
-    
+        return
     await message.answer("👑 <b>Главное меню админа</b>\n\nВыберите действие:", reply_markup=admin_main_menu())
 
-# === ГЛАВНОЕ МЕНЮ АДМИНА ===
 def admin_main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👥 Список юзеров", callback_data="admin_users")],
@@ -133,7 +131,7 @@ async def admin_to_main(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     await callback.message.edit_text("👑 <b>Главное меню админа</b>\n\nВыберите действие:", reply_markup=admin_main_menu())
 
-# === СПИСОК ЮЗЕРОВ ===
+# === АДМИН: СПИСОК ЮЗЕРОВ ===
 @dp.callback_query(F.data == "admin_users")
 async def admin_users(callback: types.CallbackQuery):
     await callback.answer()
@@ -228,7 +226,7 @@ async def process_extend_days(message: types.Message, state: FSMContext):
     new_date_str = new_date.strftime("%Y-%m-%d")
     cur.execute("UPDATE users SET sub_until = ? WHERE user_id = ?", (new_date_str, user_id))
     conn.commit()
-    await message.answer(f"✅ Продлено до {new_date_str}.")
+    await message.answer(f"✅ Продлено до {new_date_str}.", reply_markup=admin_main_menu())
 
 @dp.callback_query(F.data.startswith("admin_revoke_"))
 async def admin_revoke(callback: types.CallbackQuery):
@@ -239,7 +237,7 @@ async def admin_revoke(callback: types.CallbackQuery):
     conn.commit()
     await callback.answer("Подписка забрана.", show_alert=True)
 
-# === КЕЙГЕН ===
+# === АДМИН: КЕЙГЕН ===
 @dp.callback_query(F.data == "admin_keygen")
 async def admin_keygen(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -272,7 +270,7 @@ async def keygen_process(message: types.Message, state: FSMContext):
         reply_markup=admin_main_menu()
     )
 
-# === СПИСОК КЛЮЧЕЙ ===
+# === АДМИН: СПИСОК КЛЮЧЕЙ ===
 @dp.callback_query(F.data == "admin_keys")
 async def admin_keys(callback: types.CallbackQuery):
     await callback.answer()
@@ -284,14 +282,12 @@ async def admin_keys(callback: types.CallbackQuery):
         return
 
     text = "🔑 <b>Созданные ключи:</b>\n\n"
-    for k in keys[:50]: # Показываем последние 50
+    for k in keys[-20:]: # Последние 20
         text += f"<code>{k['key_code']}</code> — до {k['date_until']}\n"
-    if len(keys) > 50:
-        text += f"\n... и еще {len(keys) - 50} ключей."
 
     await callback.message.edit_text(text, reply_markup=admin_main_menu())
 
-# === СТАТИСТИКА ===
+# === АДМИН: СТАТИСТИКА ===
 @dp.callback_query(F.data == "admin_stats")
 async def admin_stats(callback: types.CallbackQuery):
     await callback.answer()
@@ -310,7 +306,7 @@ async def admin_stats(callback: types.CallbackQuery):
     )
     await callback.message.edit_text(text, reply_markup=admin_main_menu())
 
-# === ВЫДАТЬ ПО ID ===
+# === АДМИН: ВЫДАТЬ ПО ID ===
 @dp.callback_query(F.data == "admin_gift")
 async def admin_gift(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -334,9 +330,9 @@ async def process_gift(message: types.Message, state: FSMContext):
     new_date = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
     cur.execute("UPDATE users SET sub_until = ? WHERE user_id = ?", (new_date, user_id))
     conn.commit()
-    await message.answer(f"✅ Выдано до {new_date}.")
+    await message.answer(f"✅ Выдано до {new_date}.", reply_markup=admin_main_menu())
 
-# === РАССЫЛКА ===
+# === АДМИН: РАССЫЛКА ===
 @dp.callback_query(F.data == "admin_broadcast")
 async def admin_broadcast(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -361,12 +357,12 @@ async def process_broadcast(message: types.Message, state: FSMContext):
         try:
             await bot.send_message(u['user_id'], text)
             success += 1
-            await asyncio.sleep(0.05) # Чтобы не забанил телеграм
+            await asyncio.sleep(0.05)
         except: pass
     
-    await message.answer(f"✅ Рассылка завершена. Доставлено {success} из {len(users)}.")
+    await message.answer(f"✅ Рассылка завершена. Доставлено {success} из {len(users)}.", reply_markup=admin_main_menu())
 
-# === СКАЧАТЬ БАЗУ ===
+# === АДМИН: СКАЧАТЬ БАЗУ ===
 @dp.callback_query(F.data == "admin_db")
 async def admin_db(callback: types.CallbackQuery):
     await callback.answer()
@@ -377,7 +373,7 @@ async def admin_db(callback: types.CallbackQuery):
     except Exception as e:
         await callback.message.answer(f"❌ Ошибка: {e}")
 
-# === ОСТАЛЬНЫЕ КНОПКИ ШОПА ===
+# === КНОПКИ ШОПА ===
 @dp.callback_query(F.data == "main_menu")
 async def to_main(callback: types.CallbackQuery):
     await callback.answer()
