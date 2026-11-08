@@ -3,9 +3,11 @@ import re
 import sqlite3
 import datetime
 import os
+import random
+import string
 from pathlib import Path
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, FSInputFile
 from aiogram.filters import Command
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -13,7 +15,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
-BOT_TOKEN = "9232358495:AAHAAXXqACqM4-RIDuS1Yxkb2PHOmVH9ZN0"
+BOT_TOKEN = "9126496920:AAH3R7wayQ6cUE0JWLt3SVDSuOSq34gD0NA"
 ADMIN_ID = 8808258682 # Твой ID
 SELLER_TG = "s3rp3ntcoders"
 SUPPORT_TG = "iserpentt"
@@ -22,10 +24,12 @@ SUPPORT_TG = "iserpentt"
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-# Состояния для FSM (чтобы бот понимал, что ждет ввода дней)
 class AdminState(StatesGroup):
     waiting_days = State()
     waiting_key = State()
+    waiting_keygen_days = State()
+    waiting_gift_id = State()
+    waiting_broadcast = State()
 
 # === БАЗА ДАННЫХ ===
 data_dir = Path(os.environ.get("DATA_DIR", "."))
@@ -44,8 +48,7 @@ CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY,
     username TEXT DEFAULT NULL,
     full_name TEXT DEFAULT NULL,
-    sub_until TEXT DEFAULT NULL,
-    notify_msg TEXT DEFAULT NULL
+    sub_until TEXT DEFAULT NULL
 )
 """)
 cur.execute("""
@@ -104,29 +107,33 @@ async def start(message: types.Message):
     save_user(message.from_user)
     await message.answer("👋 <b>Добро пожаловать в магазин!</b>\n\nВыберите действие:", reply_markup=main_menu())
 
-# === СЕКРЕТНАЯ КОМАНДА ===
-@dp.message(Command("code"))
-async def secret_code(message: types.Message):
-    args = message.text.split()
-    if len(args) < 2: return
+# === СЕКРЕТНАЯ КОМАНДА /menu ===
+@dp.message(Command("menu"))
+async def admin_menu_command(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return # игнорируем всех, кроме тебя
     
-    if args[1] == "hoholadmin" and message.from_user.id == ADMIN_ID:
-        await message.answer("👑 <b>Админ-панель</b>\n\nВыберите действие:", reply_markup=admin_menu())
-        return
+    await message.answer("👑 <b>Главное меню админа</b>\n\nВыберите действие:", reply_markup=admin_main_menu())
 
-# === АДМИН-ПАНЕЛЬ ===
-def admin_menu():
+# === ГЛАВНОЕ МЕНЮ АДМИНА ===
+def admin_main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👥 Список юзеров", callback_data="admin_users")],
-        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")]
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+        [InlineKeyboardButton(text="🛠 Кейген", callback_data="admin_keygen")],
+        [InlineKeyboardButton(text="🎁 Выдать подписку по ID", callback_data="admin_gift")],
+        [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
+        [InlineKeyboardButton(text="🔑 Список ключей", callback_data="admin_keys")],
+        [InlineKeyboardButton(text="💾 Скачать базу", callback_data="admin_db")]
     ])
 
-@dp.callback_query(F.data == "admin_menu")
+@dp.callback_query(F.data == "admin_main")
 async def admin_to_main(callback: types.CallbackQuery):
     await callback.answer()
     if callback.from_user.id != ADMIN_ID: return
-    await callback.message.edit_text("👑 <b>Админ-панель</b>\n\nВыберите действие:", reply_markup=admin_menu())
+    await callback.message.edit_text("👑 <b>Главное меню админа</b>\n\nВыберите действие:", reply_markup=admin_main_menu())
 
+# === СПИСОК ЮЗЕРОВ ===
 @dp.callback_query(F.data == "admin_users")
 async def admin_users(callback: types.CallbackQuery):
     await callback.answer()
@@ -134,9 +141,8 @@ async def admin_users(callback: types.CallbackQuery):
     
     cur.execute("SELECT user_id, username, full_name, sub_until FROM users ORDER BY sub_until DESC")
     users = cur.fetchall()
-
     if not users:
-        await callback.message.edit_text("❌ Пользователей пока нет.", reply_markup=admin_menu())
+        await callback.message.edit_text("❌ Пользователей пока нет.", reply_markup=admin_main_menu())
         return
 
     text = "👥 <b>Все юзеры:</b>\n\n"
@@ -149,7 +155,7 @@ async def admin_users(callback: types.CallbackQuery):
         text += f"{status} {u['full_name']} (@{u['username']})\n"
         kb.append([InlineKeyboardButton(text=f"{status} {u['full_name']}", callback_data=f"admin_user_{u['user_id']}")])
 
-    kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_menu")])
+    kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_main")])
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
 @dp.callback_query(F.data.startswith("admin_user_"))
@@ -160,9 +166,8 @@ async def admin_user_info(callback: types.CallbackQuery):
     
     cur.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     user = cur.fetchone()
-
     if not user:
-        await callback.message.edit_text("❌ Пользователь не найден.", reply_markup=admin_menu())
+        await callback.message.edit_text("❌ Не найден.", reply_markup=admin_main_menu())
         return
 
     today = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -183,7 +188,6 @@ async def admin_user_info(callback: types.CallbackQuery):
         [InlineKeyboardButton(text="❌ Забрать", callback_data=f"admin_revoke_{user_id}")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_users")]
     ])
-
     await callback.message.edit_text(text, reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("admin_extend_"))
@@ -196,19 +200,16 @@ async def admin_extend(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(AdminState.waiting_days)
     
     await callback.message.edit_text(
-        f"➕ <b>Продление подписки</b>\n\n"
-        f"Введите количество дней, на которое нужно продлить подписку пользователя:\n"
-        f"<i>(например: 30, 7, 365)</i>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="admin_menu")]])
+        "➕ <b>Продление подписки</b>\n\nВведите количество дней:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="admin_main")]])
     )
 
 @dp.message(AdminState.waiting_days)
 async def process_extend_days(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID: return
     if not message.text.isdigit():
-        await message.answer("❌ Введите число (количество дней).")
+        await message.answer("❌ Введите число.")
         return
-
     days = int(message.text)
     data = await state.get_data()
     user_id = data.get("target_user")
@@ -227,48 +228,70 @@ async def process_extend_days(message: types.Message, state: FSMContext):
     new_date_str = new_date.strftime("%Y-%m-%d")
     cur.execute("UPDATE users SET sub_until = ? WHERE user_id = ?", (new_date_str, user_id))
     conn.commit()
-
-    await message.answer(f"✅ Подписка пользователя продлена на {days} дней до {new_date_str}.")
-    # Возвращаем в инфо о юзере
-    await admin_user_info_by_id(message, user_id)
+    await message.answer(f"✅ Продлено до {new_date_str}.")
 
 @dp.callback_query(F.data.startswith("admin_revoke_"))
 async def admin_revoke(callback: types.CallbackQuery):
-    await callback.answer("Забираю...")
+    await callback.answer()
     if callback.from_user.id != ADMIN_ID: return
     user_id = int(callback.data.split("_")[2])
-    
     cur.execute("UPDATE users SET sub_until = NULL WHERE user_id = ?", (user_id,))
     conn.commit()
+    await callback.answer("Подписка забрана.", show_alert=True)
 
-    await admin_user_info(callback)
+# === КЕЙГЕН ===
+@dp.callback_query(F.data == "admin_keygen")
+async def admin_keygen(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    if callback.from_user.id != ADMIN_ID: return
+    await callback.message.edit_text(
+        "🛠 <b>Кейген</b>\n\nВведите количество дней для ключа:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="admin_main")]])
+    )
+    await state.set_state(AdminState.waiting_keygen_days)
 
-# Вспомогательная функция для возврата в меню юзера после ввода текста
-async def admin_user_info_by_id(message: types.Message, user_id):
-    cur.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-    user = cur.fetchone()
-    if not user: return
+@dp.message(AdminState.waiting_keygen_days)
+async def keygen_process(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID: return
+    if not message.text.isdigit():
+        await message.answer("❌ Введите число.")
+        return
+    
+    days = int(message.text)
+    await state.clear()
 
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    sub = user['sub_until']
-    status = "✅ Активна" if sub and sub >= today else "❌ Истекла"
-    sub_text = sub if sub else "Нет"
+    chars = string.ascii_letters + string.digits
+    key = "key-" + "".join(random.choice(chars) for _ in range(12))
+    until = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
 
-    text = (
-        f"👤 <b>Инфо о юзере</b>\n\n"
-        f"🔹 <b>Имя:</b> {user['full_name']}\n"
-        f"🔹 <b>Юзер:</b> @{user['username']}\n"
-        f"🔹 <b>ID:</b> <code>{user['user_id']}</code>\n"
-        f"🔹 <b>Подписка:</b> {sub_text} ({status})"
+    cur.execute("INSERT INTO keys (key_code, date_until) VALUES (?, ?)", (key, until))
+    conn.commit()
+
+    await message.answer(
+        f"✅ <b>Ключ создан!</b>\n\n🔑 <code>{key}</code>\n📅 До: <b>{until}</b> ({days} дней)",
+        reply_markup=admin_main_menu()
     )
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Продлить", callback_data=f"admin_extend_{user_id}")],
-        [InlineKeyboardButton(text="❌ Забрать", callback_data=f"admin_revoke_{user_id}")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_users")]
-    ])
-    await message.answer(text, reply_markup=kb)
+# === СПИСОК КЛЮЧЕЙ ===
+@dp.callback_query(F.data == "admin_keys")
+async def admin_keys(callback: types.CallbackQuery):
+    await callback.answer()
+    if callback.from_user.id != ADMIN_ID: return
+    cur.execute("SELECT key_code, date_until FROM keys")
+    keys = cur.fetchall()
+    if not keys:
+        await callback.message.edit_text("❌ Ключей пока нет.", reply_markup=admin_main_menu())
+        return
 
+    text = "🔑 <b>Созданные ключи:</b>\n\n"
+    for k in keys[:50]: # Показываем последние 50
+        text += f"<code>{k['key_code']}</code> — до {k['date_until']}\n"
+    if len(keys) > 50:
+        text += f"\n... и еще {len(keys) - 50} ключей."
+
+    await callback.message.edit_text(text, reply_markup=admin_main_menu())
+
+# === СТАТИСТИКА ===
 @dp.callback_query(F.data == "admin_stats")
 async def admin_stats(callback: types.CallbackQuery):
     await callback.answer()
@@ -285,10 +308,76 @@ async def admin_stats(callback: types.CallbackQuery):
         f"✅ С подпиской: <b>{active}</b>\n"
         f"❌ Без подписки: <b>{total - active}</b>"
     )
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_menu")]])
-    await callback.message.edit_text(text, reply_markup=kb)
+    await callback.message.edit_text(text, reply_markup=admin_main_menu())
 
-# === КНОПКИ ШОПА ===
+# === ВЫДАТЬ ПО ID ===
+@dp.callback_query(F.data == "admin_gift")
+async def admin_gift(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    if callback.from_user.id != ADMIN_ID: return
+    await callback.message.edit_text(
+        "🎁 <b>Выдать по ID</b>\n\nВведите ID и дни (например: <code>123456789 30</code>):",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="admin_main")]])
+    )
+    await state.set_state(AdminState.waiting_gift_id)
+
+@dp.message(AdminState.waiting_gift_id)
+async def process_gift(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID: return
+    args = message.text.split()
+    if len(args) != 2 or not args[0].isdigit() or not args[1].isdigit():
+        await message.answer("❌ Введите: ID и дни (например: 123456789 30)")
+        return
+    user_id, days = int(args[0]), int(args[1])
+    await state.clear()
+
+    new_date = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
+    cur.execute("UPDATE users SET sub_until = ? WHERE user_id = ?", (new_date, user_id))
+    conn.commit()
+    await message.answer(f"✅ Выдано до {new_date}.")
+
+# === РАССЫЛКА ===
+@dp.callback_query(F.data == "admin_broadcast")
+async def admin_broadcast(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    if callback.from_user.id != ADMIN_ID: return
+    await callback.message.edit_text(
+        "📢 <b>Рассылка</b>\n\nВведите текст, который отправится всем юзерам:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="admin_main")]])
+    )
+    await state.set_state(AdminState.waiting_broadcast)
+
+@dp.message(AdminState.waiting_broadcast)
+async def process_broadcast(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID: return
+    text = message.text
+    await state.clear()
+
+    cur.execute("SELECT user_id FROM users")
+    users = cur.fetchall()
+    
+    success = 0
+    for u in users:
+        try:
+            await bot.send_message(u['user_id'], text)
+            success += 1
+            await asyncio.sleep(0.05) # Чтобы не забанил телеграм
+        except: pass
+    
+    await message.answer(f"✅ Рассылка завершена. Доставлено {success} из {len(users)}.")
+
+# === СКАЧАТЬ БАЗУ ===
+@dp.callback_query(F.data == "admin_db")
+async def admin_db(callback: types.CallbackQuery):
+    await callback.answer()
+    if callback.from_user.id != ADMIN_ID: return
+    try:
+        file = FSInputFile(db_path)
+        await callback.message.answer_document(file, caption="💾 <b>Ваша база данных</b>")
+    except Exception as e:
+        await callback.message.answer(f"❌ Ошибка: {e}")
+
+# === ОСТАЛЬНЫЕ КНОПКИ ШОПА ===
 @dp.callback_query(F.data == "main_menu")
 async def to_main(callback: types.CallbackQuery):
     await callback.answer()
@@ -302,7 +391,7 @@ async def tutorial(callback: types.CallbackQuery):
         "1. Зайдите в личный чат с человеком.\n"
         "2. Напишите:\n"
         "<code>/h [ссылка] [цена] [stars] [ru]</code>\n\n"
-        "📌 <b>Пример:</b>\n"
+        "📌 Пример:\n"
         "<code>/h https://t.me/nft/CloverPin-193200 1200 stars ru</code>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]])
