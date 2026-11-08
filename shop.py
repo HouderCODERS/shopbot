@@ -15,7 +15,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
-BOT_TOKEN = "9232358495:AAH8hgsbab3dHPL6JCheniFpKpdDVkCPB6M"
+BOT_TOKEN = "9126496920:AAH3R7wayQ6cUE0JWLt3SVDSuOSq34gD0NA"
 ADMIN_ID = 8808258682
 SELLER_TG = "s3rp3ntcoders"
 SUPPORT_TG = "iserpentt"
@@ -52,7 +52,6 @@ def get_db():
 conn = get_db()
 cur = conn.cursor()
 
-# Основные таблицы (без колонки blocked!)
 cur.execute("""
 CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY,
@@ -162,7 +161,12 @@ async def start(message: types.Message):
             )
         except: pass
 
-    await message.answer("👋 <b>Добро пожаловать в магазин!</b>\n\n🎁 3 дня бесплатно: @s3rp3ntcoders\n\nВыберите действие:", reply_markup=main_menu())
+    await message.answer(
+        "👋 <b>Добро пожаловать в магазин!</b>\n\n"
+        "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @s3rp3ntcoders\n\n"
+        "Выберите действие:",
+        reply_markup=main_menu()
+    )
 
 # === СЕКРЕТНАЯ КОМАНДА /menu ===
 @dp.message(Command("menu"))
@@ -180,7 +184,8 @@ def admin_main_menu():
         [InlineKeyboardButton(text="🔑 Список ключей", callback_data="admin_keys")],
         [InlineKeyboardButton(text="💾 Скачать базу", callback_data="admin_db")],
         [InlineKeyboardButton(text="🎟 Промокоды", callback_data="admin_promo_menu")],
-        [InlineKeyboardButton(text="📝 Логи", callback_data="admin_logs")]
+        [InlineKeyboardButton(text="📝 Логи", callback_data="admin_logs")],
+        [InlineKeyboardButton(text="🔔 Уведомления", callback_data="admin_notify_toggle")]
     ])
 
 @dp.callback_query(F.data == "admin_main")
@@ -188,6 +193,24 @@ async def admin_to_main(callback: types.CallbackQuery):
     await callback.answer()
     if callback.from_user.id != ADMIN_ID: return
     await callback.message.edit_text("👑 <b>Главное меню админа</b>\n\nВыберите действие:", reply_markup=admin_main_menu())
+
+# === УВЕДОМЛЕНИЯ ===
+@dp.callback_query(F.data == "admin_notify_toggle")
+async def admin_notify_toggle(callback: types.CallbackQuery):
+    await callback.answer()
+    if callback.from_user.id != ADMIN_ID: return
+    current = get_setting("notify_new_users", "1")
+    new_val = "0" if current == "1" else "1"
+    set_setting("notify_new_users", new_val)
+    status = "ВКЛ" if new_val == "1" else "ВЫКЛ"
+    await callback.message.edit_text(
+        f"🔔 <b>Уведомления о новых юзерах:</b> {status}\n\n"
+        f"Нажми на кнопку ниже, чтобы переключить:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Переключить", callback_data="admin_notify_toggle")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_main")]
+        ])
+    )
 
 # === АДМИН: СПИСОК ЮЗЕРОВ ===
 @dp.callback_query(F.data == "admin_users")
