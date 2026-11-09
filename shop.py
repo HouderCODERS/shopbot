@@ -612,20 +612,18 @@ async def make_offer(message: types.Message):
         InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}")
     ]])
     
+    kwargs = {}
+    if link.startswith("https://t.me/") or link.startswith("https://"):
+        kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=False)
+    else:
+        kwargs['link_preview_options'] = LinkPreviewOptions(is_disabled=True)
+    
     try:
-        await message.edit_text(
-            text=text, 
-            reply_markup=keyboard, 
-            link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=False, is_disabled=False)
-        )
+        await message.edit_text(text=text, reply_markup=keyboard, **kwargs)
     except:
         try: await message.delete()
         except: pass
-        await message.answer(
-            text=text, 
-            reply_markup=keyboard, 
-            link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=False, is_disabled=False)
-        )
+        await message.answer(text=text, reply_markup=keyboard, **kwargs)
 
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept(callback: types.CallbackQuery):
