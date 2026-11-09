@@ -114,7 +114,8 @@ def save_user(user):
 def check_sub(user_id):
     cur.execute("SELECT sub_until FROM users WHERE user_id = ?", (user_id,))
     row = cur.fetchone()
-    if not row or row[0] is None: return False
+    if not row or row[0] is None:
+        return False
     return datetime.datetime.now().strftime("%Y-%m-%d") <= row[0]
 
 # === МЕНЮ ===
@@ -136,12 +137,17 @@ def buy_menu():
 
 async def change_message(message: types.Message, text: str, keyboard: InlineKeyboardMarkup = None, link: str = None):
     kwargs = {}
-    if keyboard: kwargs['reply_markup'] = keyboard
-    if link: kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=True)
-    try: await message.edit_text(text=text, **kwargs)
+    if keyboard:
+        kwargs['reply_markup'] = keyboard
+    if link:
+        kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=True)
+    try:
+        await message.edit_text(text=text, **kwargs)
     except:
-        try: await message.delete()
-        except: pass
+        try:
+            await message.delete()
+        except:
+            pass
         await message.answer(text=text, **kwargs)
 
 # === СТАРТ ===
@@ -159,7 +165,8 @@ async def start(message: types.Message):
                 f"🔗 @{message.from_user.username}\n"
                 f"ID: <code>{message.from_user.id}</code>"
             )
-        except: pass
+        except:
+            pass
 
     await message.answer(
         "👋 <b>Добро пожаловать в магазин!</b>\n\n"
@@ -171,7 +178,8 @@ async def start(message: types.Message):
 # === СЕКРЕТНАЯ КОМАНДА /menu ===
 @dp.message(Command("menu"))
 async def admin_menu_command(message: types.Message):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id != ADMIN_ID:
+        return
     await message.answer("👑 <b>Главное меню админа</b>\n\nВыберите действие:", reply_markup=admin_main_menu())
 
 def admin_main_menu():
@@ -191,13 +199,16 @@ def admin_main_menu():
 @dp.callback_query(F.data == "admin_main")
 async def admin_to_main(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     await callback.message.edit_text("👑 <b>Главное меню админа</b>\n\nВыберите действие:", reply_markup=admin_main_menu())
 
+# === УВЕДОМЛЕНИЯ ===
 @dp.callback_query(F.data == "admin_notify_toggle")
 async def admin_notify_toggle(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     current = get_setting("notify_new_users", "1")
     new_val = "0" if current == "1" else "1"
     set_setting("notify_new_users", new_val)
@@ -210,10 +221,12 @@ async def admin_notify_toggle(callback: types.CallbackQuery):
         ])
     )
 
+# === АДМИН: СПИСОК ЮЗЕРОВ ===
 @dp.callback_query(F.data == "admin_users")
 async def admin_users(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     
     cur.execute("SELECT user_id, username, full_name, sub_until FROM users ORDER BY sub_until DESC")
     users = cur.fetchall()
@@ -237,7 +250,8 @@ async def admin_users(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("admin_user_"))
 async def admin_user_info(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     user_id = int(callback.data.split("_")[2])
     
     cur.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
@@ -269,7 +283,8 @@ async def admin_user_info(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("admin_extend_"))
 async def admin_extend(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     user_id = int(callback.data.split("_")[2])
     
     await state.update_data(target_user=user_id)
@@ -282,7 +297,8 @@ async def admin_extend(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(AdminState.waiting_days)
 async def process_extend_days(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id != ADMIN_ID:
+        return
     if not message.text.isdigit():
         await message.answer("❌ Введите число.")
         return
@@ -307,26 +323,31 @@ async def process_extend_days(message: types.Message, state: FSMContext):
 
     try:
         await bot.send_message(user_id, f"👑 <b>Администратор продлил вашу подписку!</b>\n\nТеперь она активна до: <b>{new_date_str}</b>")
-    except: pass
+    except:
+        pass
 
     await message.answer(f"✅ Продлено до {new_date_str}.", reply_markup=admin_main_menu())
 
 @dp.callback_query(F.data.startswith("admin_revoke_"))
 async def admin_revoke(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     user_id = int(callback.data.split("_")[2])
     cur.execute("UPDATE users SET sub_until = NULL WHERE user_id = ?", (user_id,))
     conn.commit()
     try:
         await bot.send_message(user_id, "❌ <b>Ваша подписка была отменена администратором.</b>")
-    except: pass
+    except:
+        pass
     await callback.answer("Подписка забрана.", show_alert=True)
 
+# === АДМИН: КЕЙГЕН ===
 @dp.callback_query(F.data == "admin_keygen")
 async def admin_keygen(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     await callback.message.edit_text(
         "🛠 <b>Кейген</b>\n\nВведите количество дней для ключа:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="admin_main")]])
@@ -335,7 +356,8 @@ async def admin_keygen(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(AdminState.waiting_keygen_days)
 async def keygen_process(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id != ADMIN_ID:
+        return
     if not message.text.isdigit():
         await message.answer("❌ Введите число.")
         return
@@ -355,10 +377,12 @@ async def keygen_process(message: types.Message, state: FSMContext):
         reply_markup=admin_main_menu()
     )
 
+# === АДМИН: СПИСОК КЛЮЧЕЙ ===
 @dp.callback_query(F.data == "admin_keys")
 async def admin_keys(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     cur.execute("SELECT key_code, date_until FROM keys")
     keys = cur.fetchall()
     if not keys:
@@ -371,10 +395,12 @@ async def admin_keys(callback: types.CallbackQuery):
 
     await callback.message.edit_text(text, reply_markup=admin_main_menu())
 
+# === АДМИН: СТАТИСТИКА ===
 @dp.callback_query(F.data == "admin_stats")
 async def admin_stats(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     cur.execute("SELECT COUNT(*) FROM users")
     total = cur.fetchone()[0]
     today = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -389,10 +415,12 @@ async def admin_stats(callback: types.CallbackQuery):
     )
     await callback.message.edit_text(text, reply_markup=admin_main_menu())
 
+# === АДМИН: ВЫДАТЬ ПО ID ===
 @dp.callback_query(F.data == "admin_gift")
 async def admin_gift(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     await callback.message.edit_text(
         "🎁 <b>Выдать по ID</b>\n\nВведите ID и дни (например: <code>123456789 30</code>):",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="admin_main")]])
@@ -401,7 +429,8 @@ async def admin_gift(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(AdminState.waiting_gift_id)
 async def process_gift(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id != ADMIN_ID:
+        return
     args = message.text.split()
     if len(args) != 2 or not args[0].isdigit() or not args[1].isdigit():
         await message.answer("❌ Введите: ID и дни (например: 123456789 30)")
@@ -415,14 +444,17 @@ async def process_gift(message: types.Message, state: FSMContext):
 
     try:
         await bot.send_message(user_id, f"👑 <b>Администратор выдал вам подписку!</b>\n\nОна активна до: <b>{new_date}</b>")
-    except: pass
+    except:
+        pass
 
     await message.answer(f"✅ Выдано до {new_date}.", reply_markup=admin_main_menu())
 
+# === АДМИН: РАССЫЛКА ===
 @dp.callback_query(F.data == "admin_broadcast")
 async def admin_broadcast(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     await callback.message.edit_text(
         "📢 <b>Рассылка</b>\n\nВведите текст, который отправится всем юзерам:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="admin_main")]])
@@ -431,7 +463,8 @@ async def admin_broadcast(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(AdminState.waiting_broadcast)
 async def process_broadcast(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id != ADMIN_ID:
+        return
     text = message.text
     await state.clear()
 
@@ -445,7 +478,7 @@ async def process_broadcast(message: types.Message, state: FSMContext):
         try:
             await bot.send_message(u['user_id'], text)
             success += 1
-            await asyncio.sleep(0.05) 
+            await asyncio.sleep(0.05)
         except Exception:
             failed += 1
     
@@ -456,26 +489,32 @@ async def process_broadcast(message: types.Message, state: FSMContext):
         reply_markup=admin_main_menu()
     )
 
+# === АДМИН: СКАЧАТЬ БАЗУ ===
 @dp.callback_query(F.data == "admin_db")
 async def admin_db(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     try:
         file = FSInputFile(db_path)
         await callback.message.answer_document(file, caption="💾 <b>Ваша база данных</b>")
     except Exception as e:
         await callback.message.answer(f"❌ Ошибка: {e}")
 
+# === АДМИН: ПРОМОКОДЫ ===
 @dp.callback_query(F.data == "admin_promo_menu")
 async def admin_promo_menu(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     cur.execute("SELECT code, days FROM promos")
     promos = cur.fetchall()
     
     text = "🎟 <b>Промокоды:</b>\n\n"
-    for p in promos: text += f"<code>{p['code']}</code> — {p['days']} дней\n"
-    if not promos: text = "❌ Нет промокодов."
+    for p in promos:
+        text += f"<code>{p['code']}</code> — {p['days']} дней\n"
+    if not promos:
+        text = "❌ Нет промокодов."
         
     kb = [[InlineKeyboardButton(text="➕ Создать промокод", callback_data="admin_newpromo")],
           [InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_main")]]
@@ -484,20 +523,23 @@ async def admin_promo_menu(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "admin_newpromo")
 async def admin_newpromo(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     await callback.message.edit_text("🎟 Введите текст промокода (например: FREE3):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="admin_promo_menu")]]))
     await state.set_state(AdminState.waiting_promocode)
 
 @dp.message(AdminState.waiting_promocode)
 async def process_promocode(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id != ADMIN_ID:
+        return
     await state.update_data(code=message.text.strip())
     await state.set_state(AdminState.waiting_promo_days)
     await message.answer("Сколько дней дает этот промокод?")
 
 @dp.message(AdminState.waiting_promo_days)
 async def process_promo_days(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID or not message.text.isdigit(): return
+    if message.from_user.id != ADMIN_ID or not message.text.isdigit():
+        return
     days = int(message.text)
     data = await state.get_data()
     code = data['code']
@@ -507,10 +549,12 @@ async def process_promo_days(message: types.Message, state: FSMContext):
     conn.commit()
     await message.answer(f"✅ Промокод <code>{code}</code> на {days} дней создан!", reply_markup=admin_main_menu())
 
+# === АДМИН: ЛОГИ ===
 @dp.callback_query(F.data == "admin_logs")
 async def admin_logs(callback: types.CallbackQuery):
     await callback.answer()
-    if callback.from_user.id != ADMIN_ID: return
+    if callback.from_user.id != ADMIN_ID:
+        return
     cur.execute("SELECT user_id, action, date FROM logs ORDER BY id DESC LIMIT 30")
     logs = cur.fetchall()
     
@@ -602,13 +646,16 @@ async def prices(callback: types.CallbackQuery):
 async def make_offer(message: types.Message):
     save_user(message.from_user)
     if not check_sub(message.from_user.id):
-        try: await message.delete()
-        except: pass
+        try:
+            await message.delete()
+        except:
+            pass
         await message.answer("⛔ У вас нет подписки!")
         return
 
     args = message.text.split()
-    if len(args) < 5: return
+    if len(args) < 5:
+        return
     link, price, lang = args[1], args[2], args[4].lower()
     
     match = re.search(r'/nft/([^-]+)-(\d+)', link)
@@ -627,10 +674,13 @@ async def make_offer(message: types.Message):
         InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}"),
         InlineKeyboardButton(text=f"❌ {btn_decline}", callback_data="decline_offer")
     ]])
-    try: await message.edit_text(text=text, reply_markup=keyboard, link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=True))
+    try:
+        await message.edit_text(text=text, reply_markup=keyboard, link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=True))
     except:
-        try: await message.delete()
-        except: pass
+        try:
+            await message.delete()
+        except:
+            pass
         await message.answer(text=text, reply_markup=keyboard, link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=True))
 
 @dp.callback_query(F.data.startswith("accept_"))
@@ -645,17 +695,14 @@ async def accept(callback: types.CallbackQuery):
     ])
     await change_message(callback.message, text_accepted, keyboard)
 
-# === ИЗМЕНЕННАЯ ФУНКЦИЯ "Я ОТПРАВИЛ" ===
 @dp.callback_query(F.data.startswith("sent_"))
 async def sent_gift(callback: types.CallbackQuery):
     await callback.answer()
-    
-    # Бот не может проверить, отправил ли человек NFT. 
-    # Поэтому он всегда говорит "NFT не передан", оставляя оффер висеть.
+    # Всегда говорим, что NFT не передан, чтобы оффер не закрывался
     await change_message(
         callback.message,
         "❌ <b>Ошибка: NFT не передан!</b>\n\n"
-        "Бот не обнаружил подарок. Пожалуйста, убедитесь, что вы отправили NFT по кнопке «📤 Отправить».\n\n"
+        "Бот не обнаружил подарок. Убедитесь, что вы отправили NFT по кнопке «📤 Отправить».\n\n"
         "Если вы уже отправили, подождите пару минут и нажмите кнопку ещё раз."
     )
 
