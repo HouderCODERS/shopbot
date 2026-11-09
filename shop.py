@@ -625,6 +625,7 @@ async def make_offer(message: types.Message):
         except: pass
         await message.answer(text=text, reply_markup=keyboard, **kwargs)
 
+# === ПОСЛЕ ПРИНЯТИЯ (с превью NFT и жирным шрифтом) ===
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept(callback: types.CallbackQuery):
     await callback.answer()
@@ -637,6 +638,8 @@ async def accept(callback: types.CallbackQuery):
         f"<i>Сделка защищена Telegram. После передачи подарка звезды поступят на ваш баланс.</i>"
     )
     
+    # Пытаемся добавить превью NFT (картинку) через ссылку на подарок
+    # Ссылка на подарок не передавалась, поэтому показываем без картинки, но с жирным текстом
     try:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Передать NFT ↗", url=f"tg://user?id={sender_id}")],
@@ -649,6 +652,7 @@ async def accept(callback: types.CallbackQuery):
         ])
         await change_message(callback.message, text_accepted, keyboard)
 
+# === КАК ПЕРЕДАТЬ (с жирным шрифтом и кнопкой назад) ===
 @dp.callback_query(F.data.startswith("how_to_send_"))
 async def how_to_send(callback: types.CallbackQuery):
     await callback.answer()
