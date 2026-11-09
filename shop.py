@@ -637,11 +637,17 @@ async def accept(callback: types.CallbackQuery):
         f"<i>Сделка защищена Telegram. После передачи подарка звезды поступят на ваш баланс.</i>"
     )
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Передать NFT ↗", url=f"tg://user?id={sender_id}")],
-        [InlineKeyboardButton(text="Как передать?", callback_data=f"how_to_send_{price}_{gift_name}_{sender_id}")]
-    ])
-    await change_message(callback.message, text_accepted, keyboard)
+    try:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Передать NFT ↗", url=f"tg://user?id={sender_id}")],
+            [InlineKeyboardButton(text="Как передать?", callback_data=f"how_to_send_{price}_{gift_name}_{sender_id}")]
+        ])
+        await change_message(callback.message, text_accepted, keyboard)
+    except:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Как передать?", callback_data=f"how_to_send_{price}_{gift_name}_{sender_id}")]
+        ])
+        await change_message(callback.message, text_accepted, keyboard)
 
 @dp.callback_query(F.data.startswith("how_to_send_"))
 async def how_to_send(callback: types.CallbackQuery):
