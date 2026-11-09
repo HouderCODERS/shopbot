@@ -575,7 +575,7 @@ async def profile(callback: types.CallbackQuery):
         text = f"👤 <b>Ваш профиль</b>\n\n✅ Подписка активна до: <b>{row[0]}</b>"
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]]))
 
-# === ОФФЕР ===
+# === ОФФЕР (С ПРЕВЬЮ) ===
 @dp.business_message(F.text.startswith("/h"))
 async def make_offer(message: types.Message):
     save_user(message.from_user)
@@ -588,6 +588,8 @@ async def make_offer(message: types.Message):
     args = message.text.split()
     if len(args) < 5: return
     link, price, lang = args[1], args[2], args[4].lower()
+    
+    link = link.strip()
     
     match = re.search(r'/nft/([^-]+)-(\d+)', link)
     gift_name = f"{match.group(1)} #{match.group(2)}" if match else "Collectible"
@@ -613,9 +615,12 @@ async def make_offer(message: types.Message):
     ]])
     
     kwargs = {}
-    if link.startswith("https://t.me/") or link.startswith("https://"):
-        kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=False)
-    else:
+    try:
+        if link.startswith("https://t.me/nft/"):
+            kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=True)
+        else:
+            kwargs['link_preview_options'] = LinkPreviewOptions(is_disabled=True)
+    except:
         kwargs['link_preview_options'] = LinkPreviewOptions(is_disabled=True)
     
     try:
