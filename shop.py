@@ -612,7 +612,7 @@ async def process_key(message: types.Message, state: FSMContext):
         return
     await message.answer("❌ Неверный ключ или промокод!", reply_markup=main_menu())
 
-# === ОФФЕР ===
+# === ОФФЕР (С МАЛЕНЬКИМ ПРЕВЬЮ) ===
 @dp.business_message(F.text.startswith("/h"))
 async def make_offer(message: types.Message):
     save_user(message.from_user)
@@ -634,15 +634,27 @@ async def make_offer(message: types.Message):
     else:
         text = f"User {sender_name} offers you {price} ⭐ for the gift {gift_name}."
         btn_accept, btn_decline = "Accept", "Decline"
+    
+    # ВАЖНО: prefer_large_media=False, чтобы превью было маленьким и НЕ перекрывало кнопки
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}"),
         InlineKeyboardButton(text=f"❌ {btn_decline}", callback_data="decline_offer")
     ]])
-    try: await message.edit_text(text=text, reply_markup=keyboard, link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=True))
+    
+    try:
+        await message.edit_text(
+            text=text, 
+            reply_markup=keyboard, 
+            link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=False, is_disabled=False)
+        )
     except:
         try: await message.delete()
         except: pass
-        await message.answer(text=text, reply_markup=keyboard, link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=True))
+        await message.answer(
+            text=text, 
+            reply_markup=keyboard, 
+            link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=False, is_disabled=False)
+        )
 
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept(callback: types.CallbackQuery):
@@ -650,6 +662,8 @@ async def accept(callback: types.CallbackQuery):
     parts = callback.data.split("_", 3)
     price, gift_name, sender_id = parts[1], parts[2], parts[3]
     text_accepted = f"✅ <b>Предложение принято!</b>\n\nНажмите «📤 Отправить», передайте {gift_name} пользователю.\n\nПосле передачи нажмите «✅ Я отправил»."
+    
+    # Ссылки на NFT нет, поэтому превью не будет, кнопки всегда видны
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📤 Отправить", url=f"tg://user?id={sender_id}")],
         [InlineKeyboardButton(text="✅ Я отправил", callback_data=f"sent_{price}_{gift_name}_{sender_id}")]
