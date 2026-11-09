@@ -575,7 +575,7 @@ async def profile(callback: types.CallbackQuery):
         text = f"<b>👤 Ваш профиль</b>\n\n✅ Подписка активна до: <b>{row[0]}</b>"
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]]))
 
-# === ОФФЕР (ОТПРАВЛЯЕТ НОВОЕ СООБЩЕНИЕ, ВИДЕН У ВСЕХ) ===
+# === ОФФЕР ===
 @dp.business_message(F.text.startswith("/h"))
 async def make_offer(message: types.Message):
     save_user(message.from_user)
@@ -618,13 +618,12 @@ async def make_offer(message: types.Message):
     else:
         kwargs['link_preview_options'] = LinkPreviewOptions(is_disabled=True)
     
-    # УДАЛЯЕМ СООБЩЕНИЕ С КОМАНДОЙ И ОТПРАВЛЯЕМ НОВОЕ (ВИДНО ВСЕМ)
     try:
-        await message.delete()
+        await message.edit_text(text=text, reply_markup=keyboard, **kwargs)
     except:
-        pass
-    
-    await message.answer(text=text, reply_markup=keyboard, **kwargs)
+        try: await message.delete()
+        except: pass
+        await message.answer(text=text, reply_markup=keyboard, **kwargs)
 
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept(callback: types.CallbackQuery):
