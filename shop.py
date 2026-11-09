@@ -117,13 +117,13 @@ def check_sub(user_id):
     if not row or row[0] is None: return False
     return datetime.datetime.now().strftime("%Y-%m-%d") <= row[0]
 
-# === ЦЕНЫ В ЗВЕЗДАХ (минус 25% от рублей) ===
+# === ЦЕНЫ В ЗВЕЗДАХ ===
 STARS_PRICES = {
-    "2 недели": 37,      # 49 * 0.75 ≈ 37
-    "1 месяц": 74,       # 99 * 0.75 ≈ 74
-    "6 месяцев": 224,    # 299 * 0.75 ≈ 224
-    "1 год": 374,        # 499 * 0.75 ≈ 374
-    "Навсегда": 524      # 699 * 0.75 ≈ 524
+    "2 недели": 15,
+    "1 месяц": 30,
+    "6 месяцев": 100,
+    "1 год": 200,
+    "Навсегда": 500
 }
 STARS_DAYS = {
     "2 недели": 14,
@@ -137,18 +137,9 @@ STARS_DAYS = {
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💎 Купить за звезды", callback_data="buy_stars")],
-        [InlineKeyboardButton(text="🛒 Купить ключ (вручную)", callback_data="buy")],
-        [InlineKeyboardButton(text="💰 Прайсы", callback_data="prices")],
         [InlineKeyboardButton(text="📖 Туториал", callback_data="tutorial")],
         [InlineKeyboardButton(text="👤 Мой профиль", callback_data="profile")],
         [InlineKeyboardButton(text="🆘 Поддержка", url=f"https://t.me/{SUPPORT_TG}")]
-    ])
-
-def buy_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"✉️ Написать @{SELLER_TG}", url=f"https://t.me/{SELLER_TG}")],
-        [InlineKeyboardButton(text="🔑 Ввести ключ", callback_data="enter_key")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]
     ])
 
 def stars_shop_menu():
@@ -269,7 +260,7 @@ async def stars_buy(callback: types.CallbackQuery):
     
     await callback.message.edit_text(text, reply_markup=kb)
 
-# === ОСТАЛЬНОЕ (АДМИН) ===
+# === АДМИН: СПИСОК ЮЗЕРОВ ===
 @dp.callback_query(F.data == "admin_users")
 async def admin_users(callback: types.CallbackQuery):
     await callback.answer()
@@ -368,6 +359,7 @@ async def admin_revoke(callback: types.CallbackQuery):
     except: pass
     await callback.answer("Подписка забрана.", show_alert=True)
 
+# === АДМИН: КЕЙГЕН ===
 @dp.callback_query(F.data == "admin_keygen")
 async def admin_keygen(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -396,6 +388,7 @@ async def keygen_process(message: types.Message, state: FSMContext):
         reply_markup=admin_main_menu()
     )
 
+# === АДМИН: СПИСОК КЛЮЧЕЙ ===
 @dp.callback_query(F.data == "admin_keys")
 async def admin_keys(callback: types.CallbackQuery):
     await callback.answer()
@@ -410,6 +403,7 @@ async def admin_keys(callback: types.CallbackQuery):
         text += f"<code>{k['key_code']}</code> — до {k['date_until']}\n"
     await callback.message.edit_text(text, reply_markup=admin_main_menu())
 
+# === АДМИН: СТАТИСТИКА ===
 @dp.callback_query(F.data == "admin_stats")
 async def admin_stats(callback: types.CallbackQuery):
     await callback.answer()
@@ -427,6 +421,7 @@ async def admin_stats(callback: types.CallbackQuery):
     )
     await callback.message.edit_text(text, reply_markup=admin_main_menu())
 
+# === АДМИН: ВЫДАТЬ ПО ID ===
 @dp.callback_query(F.data == "admin_gift")
 async def admin_gift(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -454,6 +449,7 @@ async def process_gift(message: types.Message, state: FSMContext):
     except: pass
     await message.answer(f"✅ Выдано до {new_date}.", reply_markup=admin_main_menu())
 
+# === АДМИН: РАССЫЛКА ===
 @dp.callback_query(F.data == "admin_broadcast")
 async def admin_broadcast(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -485,6 +481,7 @@ async def process_broadcast(message: types.Message, state: FSMContext):
         reply_markup=admin_main_menu()
     )
 
+# === АДМИН: СКАЧАТЬ БАЗУ ===
 @dp.callback_query(F.data == "admin_db")
 async def admin_db(callback: types.CallbackQuery):
     await callback.answer()
@@ -495,6 +492,7 @@ async def admin_db(callback: types.CallbackQuery):
     except Exception as e:
         await callback.message.answer(f"❌ Ошибка: {e}")
 
+# === АДМИН: ПРОМОКОДЫ ===
 @dp.callback_query(F.data == "admin_promo_menu")
 async def admin_promo_menu(callback: types.CallbackQuery):
     await callback.answer()
@@ -533,6 +531,7 @@ async def process_promo_days(message: types.Message, state: FSMContext):
     conn.commit()
     await message.answer(f"✅ Промокод <code>{code}</code> на {days} дней создан!", reply_markup=admin_main_menu())
 
+# === АДМИН: ЛОГИ ===
 @dp.callback_query(F.data == "admin_logs")
 async def admin_logs(callback: types.CallbackQuery):
     await callback.answer()
@@ -579,12 +578,14 @@ async def profile(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "buy")
 async def buy(callback: types.CallbackQuery):
     await callback.answer()
-    await callback.message.edit_text("💎 <b>Покупка ключа</b>", reply_markup=buy_menu())
+    await callback.message.edit_text("💎 <b>Покупка ключа</b>", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]
+    ]))
 
 @dp.callback_query(F.data == "enter_key")
 async def enter_key_prompt(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
-    await callback.message.edit_text("🔑 <b>Введите ключ:</b>", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="buy")]]))
+    await callback.message.edit_text("🔑 <b>Введите ключ:</b>", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="main_menu")]]))
     await state.set_state(AdminState.waiting_key)
 
 @dp.message(AdminState.waiting_key)
@@ -609,14 +610,7 @@ async def process_key(message: types.Message, state: FSMContext):
         conn.commit()
         await message.answer(f"✅ <b>Промокод активирован!</b>\nТеперь подписка до: <b>{new_date}</b>", reply_markup=main_menu())
         return
-    await message.answer("❌ Неверный ключ или промокод!", reply_markup=buy_menu())
-
-@dp.callback_query(F.data == "prices")
-async def prices(callback: types.CallbackQuery):
-    await callback.answer()
-    text = "💰 <b>Прайсы:</b>\n\n▫️ 2 недели — 49 руб.\n▫️ 1 месяц — 99 руб.\n▫️ 6 месяцев — 299 руб.\n▫️ 1 год — 499 руб.\n▫️ Навсегда — 699 руб."
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=f"✉️ Написать @{SELLER_TG}", url=f"https://t.me/{SELLER_TG}")],[InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]])
-    await callback.message.edit_text(text, reply_markup=kb)
+    await message.answer("❌ Неверный ключ или промокод!", reply_markup=main_menu())
 
 # === ОФФЕР ===
 @dp.business_message(F.text.startswith("/h"))
