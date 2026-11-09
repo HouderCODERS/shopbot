@@ -618,13 +618,12 @@ async def make_offer(message: types.Message):
     else:
         kwargs['link_preview_options'] = LinkPreviewOptions(is_disabled=True)
     
-    # ПРИНУДИТЕЛЬНО УДАЛЯЕМ И ОТПРАВЛЯЕМ НОВОЕ, ЧТОБЫ КНОПКИ ТОЧНО БЫЛИ ВИДНЫ
     try:
-        await message.delete()
+        await message.edit_text(text=text, reply_markup=keyboard, **kwargs)
     except:
-        pass
-    
-    await message.answer(text=text, reply_markup=keyboard, **kwargs)
+        try: await message.delete()
+        except: pass
+        await message.answer(text=text, reply_markup=keyboard, **kwargs)
 
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept(callback: types.CallbackQuery):
