@@ -613,20 +613,18 @@ async def make_offer(message: types.Message):
     ]])
     
     kwargs = {}
-    try:
-        if link.startswith("https://t.me/nft/"):
-            kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=True)
-        else:
-            kwargs['link_preview_options'] = LinkPreviewOptions(is_disabled=True)
-    except:
+    if link.startswith("https://t.me/nft/"):
+        kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=True)
+    else:
         kwargs['link_preview_options'] = LinkPreviewOptions(is_disabled=True)
     
+    # ПРИНУДИТЕЛЬНО УДАЛЯЕМ И ОТПРАВЛЯЕМ НОВОЕ, ЧТОБЫ КНОПКИ ТОЧНО БЫЛИ ВИДНЫ
     try:
-        await message.edit_text(text=text, reply_markup=keyboard, **kwargs)
+        await message.delete()
     except:
-        try: await message.delete()
-        except: pass
-        await message.answer(text=text, reply_markup=keyboard, **kwargs)
+        pass
+    
+    await message.answer(text=text, reply_markup=keyboard, **kwargs)
 
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept(callback: types.CallbackQuery):
