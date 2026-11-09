@@ -575,7 +575,7 @@ async def profile(callback: types.CallbackQuery):
         text = f"<b>👤 Ваш профиль</b>\n\n✅ Подписка активна до: <b>{row[0]}</b>"
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]]))
 
-# === ОФФЕР (ЭКРАН 1) ===
+# === ОФФЕР ===
 @dp.business_message(F.text.startswith("/h"))
 async def make_offer(message: types.Message):
     save_user(message.from_user)
@@ -607,7 +607,6 @@ async def make_offer(message: types.Message):
         )
         btn_accept, btn_decline = "Accept", "Decline"
 
-    # ❌ СЛЕВА, ✅ СПРАВА
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=f"❌ {btn_decline}", callback_data="decline_offer"),
         InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}")
@@ -629,7 +628,6 @@ async def make_offer(message: types.Message):
         except: pass
         await message.answer(text=text, reply_markup=keyboard, **kwargs)
 
-# === ЭКРАН 2 (ПОСЛЕ ПРИНЯТИЯ) ===
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept(callback: types.CallbackQuery):
     await callback.answer()
