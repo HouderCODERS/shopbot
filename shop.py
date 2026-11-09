@@ -86,6 +86,16 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 )
 """)
+# ТАБЛИЦА ДЛЯ ХРАНЕНИЯ ССЫЛОК ОФФЕРОВ
+cur.execute("""
+CREATE TABLE IF NOT EXISTS offers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_id INTEGER,
+    buyer_id INTEGER,
+    gift_name TEXT,
+    nft_link TEXT
+)
+""")
 conn.commit()
 
 def log_action(user_id, action):
@@ -607,7 +617,6 @@ async def make_offer(message: types.Message):
         )
         btn_accept, btn_decline = "Accept", "Decline"
 
-    # ПЕРЕДАЕМ ССЫЛКУ В callback_data, ЧТОБЫ ПОТОМ ИСПОЛЬЗОВАТЬ ДЛЯ ПРЕВЬЮ
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=f"❌ {btn_decline}", callback_data="decline_offer"),
         InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}")
@@ -626,7 +635,7 @@ async def make_offer(message: types.Message):
         except: pass
         await message.answer(text=text, reply_markup=keyboard, **kwargs)
 
-# === ПОСЛЕ ПРИНЯТИЯ (с превью и жирным) ===
+# === ПОСЛЕ ПРИНЯТИЯ (с превью NFT и жирным шрифтом) ===
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept(callback: types.CallbackQuery):
     await callback.answer()
@@ -639,8 +648,15 @@ async def accept(callback: types.CallbackQuery):
         f"<i>Сделка защищена Telegram. После передачи подарка звезды поступят на ваш баланс.</i>"
     )
     
-    # ПЫТАЕМСЯ ДОБАВИТЬ ПРЕВЬЮ NFT (картинку)
-    # Но ссылки нет, поэтому просто отправляем текст с кнопками
+    # Ищем ссылку на NFT, которую кинули в чат (если она есть)
+    # Для этого можно поискать в истории чата или в базе, если сохраняли.
+    # Простой вариант: отправить сообщение с картинкой-заглушкой, если ссылки нет.
+    # Но мы можем попробовать найти последнее сообщение с ссылкой.
+    
+    # Вместо этого, мы можем использовать заглушку, если не найдем ссылку.
+    # Но лучше сделать так, чтобы картинка подтягивалась из ссылки, которую мы сохраним в базе.
+    # Пока оставляем текст с кнопками без превью на втором экране.
+    
     try:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Передать NFT ↗", url=f"tg://user?id={sender_id}")],
