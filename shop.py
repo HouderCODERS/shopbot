@@ -612,7 +612,7 @@ async def process_key(message: types.Message, state: FSMContext):
         return
     await message.answer("❌ Неверный ключ или промокод!", reply_markup=main_menu())
 
-# === ОФФЕР (С МАЛЕНЬКИМ ПРЕВЬЮ) ===
+# === ОФФЕР ===
 @dp.business_message(F.text.startswith("/h"))
 async def make_offer(message: types.Message):
     save_user(message.from_user)
@@ -635,7 +635,6 @@ async def make_offer(message: types.Message):
         text = f"User {sender_name} offers you {price} ⭐ for the gift {gift_name}."
         btn_accept, btn_decline = "Accept", "Decline"
     
-    # ВАЖНО: prefer_large_media=False, чтобы превью было маленьким и НЕ перекрывало кнопки
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}"),
         InlineKeyboardButton(text=f"❌ {btn_decline}", callback_data="decline_offer")
@@ -663,7 +662,6 @@ async def accept(callback: types.CallbackQuery):
     price, gift_name, sender_id = parts[1], parts[2], parts[3]
     text_accepted = f"✅ <b>Предложение принято!</b>\n\nНажмите «📤 Отправить», передайте {gift_name} пользователю.\n\nПосле передачи нажмите «✅ Я отправил»."
     
-    # Ссылки на NFT нет, поэтому превью не будет, кнопки всегда видны
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📤 Отправить", url=f"tg://user?id={sender_id}")],
         [InlineKeyboardButton(text="✅ Я отправил", callback_data=f"sent_{price}_{gift_name}_{sender_id}")]
@@ -687,7 +685,11 @@ async def decline(callback: types.CallbackQuery):
 
 async def main():
     print("Бот запущен.")
-    await dp.start_polling(bot, allowed_updates=["message", "callback_query", "business_message"])
+    await dp.start_polling(
+        bot, 
+        allowed_updates=["message", "callback_query", "business_message"],
+        drop_pending_updates=True
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())
