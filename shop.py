@@ -34,7 +34,7 @@ class AdminState(StatesGroup):
     waiting_promo_days = State()
     waiting_direct_msg = State()
 
-# === БАЗА ДАННЫХ ===
+# === БАЗА ДАННЫХ С АВТОМИГРАЦИЕЙ ===
 data_dir = Path(os.environ.get("DATA_DIR", "."))
 try:
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -88,6 +88,20 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 )
 """)
+
+# АВТОМИГРАЦИЯ
+def ensure_column(table, column, coltype):
+    cur.execute(f"PRAGMA table_info({table})")
+    cols = [row[1] for row in cur.fetchall()]
+    if column not in cols:
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+        conn.commit()
+
+ensure_column("users", "username", "TEXT")
+ensure_column("users", "full_name", "TEXT")
+ensure_column("users", "is_blocked", "INTEGER DEFAULT 0")
+ensure_column("users", "notify_msg", "TEXT")
+
 conn.commit()
 
 def log_action(user_id, action):
@@ -156,14 +170,16 @@ def stars_shop_menu():
     kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
-async def safe_edit_or_send(message: types.Message, text: str, keyboard: InlineKeyboardMarkup = None):
-    """Безопасно редактирует сообщение, если не получается — удаляет и шлёт новое."""
+async def safe_edit_or_send(message: types.Message, text: str, keyboard: InlineKeyboardMarkup = None, link: str = None):
+    kwargs = {}
+    if keyboard: kwargs['reply_markup'] = keyboard
+    if link: kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=True)
     try:
-        await message.edit_text(text=text, reply_markup=keyboard)
+        await message.edit_text(text=text, **kwargs)
     except Exception:
         try: await message.delete()
         except: pass
-        await message.answer(text=text, reply_markup=keyboard)
+        await message.answer(text=text, **kwargs)
 
 # === СТАРТ ===
 @dp.message(Command("start"))
@@ -364,7 +380,7 @@ async def process_direct_msg(message: types.Message, state: FSMContext):
     except Exception as e:
         await message.answer(f"❌ Ошибка: {e}", reply_markup=admin_main_menu())
 
-# === ОСТАЛЬНЫЕ АДМИН ФУНКЦИИ ===
+# === ОСТАЛЬНЫЕ ФУНКЦИИ АДМИНА ===
 @dp.callback_query(F.data.startswith("admin_extend_"))
 async def admin_extend(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
