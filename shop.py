@@ -193,7 +193,24 @@ async def start(message: types.Message):
         try:
             await bot.send_message(ADMIN_ID, f"<b>Новый юзер!</b>\n\n👤 {message.from_user.full_name}\n🔗 @{message.from_user.username}\nID: <code>{message.from_user.id}</code>")
         except: pass
-    await message.answer("👋 <b>Добро пожаловать в магазин!</b>\n\n🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @rscxr\n\nВыберите действие:", reply_markup=main_menu())
+
+    caption = (
+        "👋 <b>Добро пожаловать в магазин!</b>\n\n"
+        "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @rscxr\n\n"
+        "Выберите действие:"
+    )
+    photo_path = Path("start.jpg")
+    if photo_path.exists():
+        try:
+            await message.answer_photo(
+                photo=FSInputFile(photo_path),
+                caption=caption,
+                reply_markup=main_menu()
+            )
+            return
+        except Exception:
+            pass
+    await message.answer(caption, reply_markup=main_menu())
 
 # === ВВОД ПРОМОКОДА (ПОЛЬЗОВАТЕЛЬ) ===
 @dp.callback_query(F.data == "enter_promo")
