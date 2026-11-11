@@ -183,6 +183,42 @@ async def safe_edit_or_send(message: types.Message, text: str, keyboard: InlineK
         except: pass
         await message.answer(text=text, **kwargs)
 
+async def send_main_menu(target, is_edit: bool = False):
+    """Отправляет главное меню: фото + подпись + кнопки. Если is_edit=True — пытается отредактировать."""
+    caption = (
+        "👋 <b>Добро пожаловать в магазин!</b>\n\n"
+        "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @rscxr\n\n"
+        "Выберите действие:"
+    )
+    photo_path = Path("start.jpg")
+    keyboard = main_menu()
+
+    if is_edit:
+        try:
+            if photo_path.exists():
+                await target.edit_caption(caption=caption, reply_markup=keyboard)
+            else:
+                await target.edit_text(text=caption, reply_markup=keyboard)
+            return
+        except Exception:
+            pass
+
+    try:
+        await target.delete()
+    except Exception:
+        pass
+    if photo_path.exists():
+        try:
+            await target.answer_photo(
+                photo=FSInputFile(photo_path),
+                caption=caption,
+                reply_markup=keyboard
+            )
+            return
+        except Exception:
+            pass
+    await target.answer(caption, reply_markup=keyboard)
+
 # === СТАРТ ===
 @dp.message(Command("start"))
 async def start(message: types.Message):
@@ -193,24 +229,7 @@ async def start(message: types.Message):
         try:
             await bot.send_message(ADMIN_ID, f"<b>Новый юзер!</b>\n\n👤 {message.from_user.full_name}\n🔗 @{message.from_user.username}\nID: <code>{message.from_user.id}</code>")
         except: pass
-
-    caption = (
-        "👋 <b>Добро пожаловать в магазин!</b>\n\n"
-        "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @rscxr\n\n"
-        "Выберите действие:"
-    )
-    photo_path = Path("start.jpg")
-    if photo_path.exists():
-        try:
-            await message.answer_photo(
-                photo=FSInputFile(photo_path),
-                caption=caption,
-                reply_markup=main_menu()
-            )
-            return
-        except Exception:
-            pass
-    await message.answer(caption, reply_markup=main_menu())
+    await send_main_menu(message, is_edit=False)
 
 # === ВВОД ПРОМОКОДА (ПОЛЬЗОВАТЕЛЬ) ===
 @dp.callback_query(F.data == "enter_promo")
@@ -567,7 +586,13 @@ async def admin_logs(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "main_menu")
 async def to_main(callback: types.CallbackQuery):
     await callback.answer()
-    await safe_edit_or_send(callback.message, "<b>👋 Выберите действие:</b>", main_menu())
+    try:
+        if callback.message.photo:
+            await send_main_menu(callback.message, is_edit=True)
+        else:
+            await send_main_menu(callback.message, is_edit=False)
+    except Exception:
+        await send_main_menu(callback.message, is_edit=False)
 
 @dp.callback_query(F.data == "tutorial")
 async def tutorial(callback: types.CallbackQuery):
