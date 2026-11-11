@@ -17,7 +17,7 @@ from aiogram.fsm.state import State, StatesGroup
 # ===== НАСТРОЙКИ =====
 BOT_TOKEN = "8692336245:AAFKoqW0L4sXWf6dTjXYA8vMO3ariK-L_hc"
 ADMIN_ID = 8808258682
-SELLER_TG = "s3rp3ntcoders"
+SELLER_TG = "rscxr"
 SUPPORT_TG = "iserpentt"
 # ======================
 
@@ -193,7 +193,7 @@ async def start(message: types.Message):
         try:
             await bot.send_message(ADMIN_ID, f"<b>Новый юзер!</b>\n\n👤 {message.from_user.full_name}\n🔗 @{message.from_user.username}\nID: <code>{message.from_user.id}</code>")
         except: pass
-    await message.answer("👋 <b>Добро пожаловать в магазин!</b>\n\n🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @s3rp3ntcoders\n\nВыберите действие:", reply_markup=main_menu())
+    await message.answer("👋 <b>Добро пожаловать в магазин!</b>\n\n🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @rscxr\n\nВыберите действие:", reply_markup=main_menu())
 
 # === ВВОД ПРОМОКОДА (ПОЛЬЗОВАТЕЛЬ) ===
 @dp.callback_query(F.data == "enter_promo")
