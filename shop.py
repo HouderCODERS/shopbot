@@ -175,13 +175,19 @@ def stars_shop_menu():
 
 async def safe_edit_or_send(message: types.Message, text: str, keyboard: InlineKeyboardMarkup = None, link: str = None):
     kwargs = {}
-    if keyboard: kwargs['reply_markup'] = keyboard
-    if link: kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=True)
-    try: await message.edit_text(text=text, **kwargs)
+    if keyboard:
+        kwargs['reply_markup'] = keyboard
+    if link:
+        kwargs['link_preview_options'] = LinkPreviewOptions(url=link, prefer_large_media=True)
+    try:
+        await message.edit_text(text=text, **kwargs)
     except Exception:
-        try: await message.delete()
-        except: pass
+        try:
+            await message.delete()
+        except Exception:
+            pass
         await message.answer(text=text, **kwargs)
+
 
 async def send_main_menu(target, is_edit: bool = False):
     """Отправляет главное меню: фото + подпись + кнопки. Если is_edit=True — пытается отредактировать."""
@@ -190,7 +196,7 @@ async def send_main_menu(target, is_edit: bool = False):
         "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @rscxr\n\n"
         "Выберите действие:"
     )
-    photo_path = Path("start.jpg")
+    photo_path = data_dir / "start.jpg"
     keyboard = main_menu()
 
     if is_edit:
@@ -207,6 +213,7 @@ async def send_main_menu(target, is_edit: bool = False):
         await target.delete()
     except Exception:
         pass
+
     if photo_path.exists():
         try:
             await target.answer_photo(
@@ -217,6 +224,7 @@ async def send_main_menu(target, is_edit: bool = False):
             return
         except Exception:
             pass
+
     await target.answer(caption, reply_markup=keyboard)
 
 # === СТАРТ ===
