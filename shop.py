@@ -404,27 +404,71 @@ async def admin_promo_stats(callback: types.CallbackQuery):
             
     await safe_edit_or_send(callback.message, text, InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=thin("Назад"), callback_data="admin_promo_menu")]]))
 
-# === ОСТАЛЬНЫЕ АДМИН ФУНКЦИИ ===
-@dp.callback_query(F.data == "admin_users")
+# === СПИСОК ЮЗЕРОВ (С ПАГИНАЦИЕЙ) ===
+@dp.callback_query(F.data.startswith("admin_users"))
 async def admin_users(callback: types.CallbackQuery):
     await callback.answer()
     if callback.from_user.id != ADMIN_ID: return
-    cur.execute("SELECT user_id, username, full_name, sub_until, is_blocked FROM users ORDER BY sub_until DESC")
+
+    page = 0
+    if callback.data.startswith("admin_users_"):
+        try:
+            page = int(callback.data.split("_")[2])
+        except Exception:
+            page = 0
+
+    per_page = 5
+    cur.execute("SELECT COUNT(*) FROM users")
+    total = cur.fetchone()[0]
+
+    if total == 0:
+        return await safe_edit_or_send(callback.message, "❌ Пользователей нет.", admin_main_menu())
+
+    max_page = max(0, (total - 1) // per_page)
+    if page < 0: page = 0
+    if page > max_page: page = max_page
+
+    offset = page * per_page
+    cur.execute("""
+        SELECT user_id, username, full_name, sub_until, is_blocked
+        FROM users
+        ORDER BY sub_until DESC
+        LIMIT ? OFFSET ?
+    """, (per_page, offset))
     users = cur.fetchall()
-    if not users: return await safe_edit_or_send(callback.message, "❌ Пользователей нет.", admin_main_menu())
-    text = "<b>👥 Все юзеры:</b>\n\n"
-    kb = []
+
     today = datetime.datetime.now().strftime("%Y-%m-%d")
+    text = f"<b>👥 Все юзеры</b> (стр. {page + 1}/{max_page + 1})\n\n"
+    kb = []
+
     for u in users:
         sub = u['sub_until']
-        status = "✅" if sub and sub >= today else "❌"
-        if u['is_blocked']: status = "🚫"
-        text += f"{status} {u['full_name']} (@{u['username']})\n"
-        kb.append([InlineKeyboardButton(text=thin(f"{u['full_name']}"), callback_data=f"admin_user_{u['user_id']}")])
-    kb.append([InlineKeyboardButton(text=thin("Назад"), callback_data="admin_main")])
+        if u['is_blocked']:
+            status = "🚫"
+        elif sub and sub >= today:
+            status = "✅"
+        else:
+            status = "❌"
+        name = u['full_name'] or f"ID {u['user_id']}"
+        text += f"{status} {name} (@{u['username']})\n"
+        kb.append([InlineKeyboardButton(
+            text=thin(f"{status} {name}"),
+            callback_data=f"admin_user_{u['user_id']}"
+        )])
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text=thin("<< Назад"), callback_data=f"admin_users_{page - 1}"))
+    if page < max_page:
+        nav.append(InlineKeyboardButton(text=thin("Дальше >>"), callback_data=f"admin_users_{page + 1}"))
+    if nav:
+        kb.append(nav)
+
+    kb.append([InlineKeyboardButton(text=thin("Назад в меню"), callback_data="admin_main")])
+
     await safe_edit_or_send(callback.message, text, InlineKeyboardMarkup(inline_keyboard=kb))
 
-@dp.callback_query(F.data.startswith("admin_user_"))
+@dp.callback_query(F.data.regexp(r"^admin_user_\d+$"))
 async def admin_user_info(callback: types.CallbackQuery):
     await callback.answer()
     if callback.from_user.id != ADMIN_ID: return
