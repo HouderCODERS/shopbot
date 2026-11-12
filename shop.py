@@ -136,6 +136,7 @@ def set_setting(key, value):
 def save_user(user):
     cur.execute("SELECT is_blocked FROM users WHERE user_id = ?", (user.id,))
     row = cur.fetchone()
+    is_new = row is None
     is_blocked = row['is_blocked'] if row else 0
     cur.execute("""
         INSERT INTO users (user_id, username, full_name, is_blocked) 
@@ -144,7 +145,7 @@ def save_user(user):
         username=excluded.username, full_name=excluded.full_name
     """, (user.id, user.username, user.full_name, is_blocked))
     conn.commit()
-    return is_blocked
+    return is_blocked, is_new
 
 def check_sub(user_id):
     cur.execute("SELECT sub_until, is_blocked FROM users WHERE user_id = ?", (user_id,))
@@ -230,13 +231,18 @@ async def send_main_menu(target, is_edit: bool = False):
 # === СТАРТ ===
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    is_blocked = save_user(message.from_user)
-    if is_blocked: return 
+    is_blocked, is_new = save_user(message.from_user)
+    if is_blocked: return
     log_action(message.from_user.id, "start")
-    if message.from_user.id != ADMIN_ID and get_setting("notify_new_users", "1") == "1":
+
+    if is_new and message.from_user.id != ADMIN_ID and get_setting("notify_new_users", "1") == "1":
         try:
-            await bot.send_message(ADMIN_ID, f"<b>Новый юзер!</b>\n\n👤 {message.from_user.full_name}\n🔗 @{message.from_user.username}\nID: <code>{message.from_user.id}</code>")
+            await bot.send_message(
+                ADMIN_ID,
+                f"<b>Новый юзер!</b>\n\n👤 {message.from_user.full_name}\n🔗 @{message.from_user.username}\nID: <code>{message.from_user.id}</code>"
+            )
         except: pass
+
     await send_main_menu(message, is_edit=False)
 
 # === ВВОД ПРОМОКОДА (ПОЛЬЗОВАТЕЛЬ) ===
