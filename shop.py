@@ -404,41 +404,86 @@ async def admin_promo_stats(callback: types.CallbackQuery):
             
     await safe_edit_or_send(callback.message, text, InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=thin("Назад"), callback_data="admin_promo_menu")]]))
 
-# === СПИСОК ЮЗЕРОВ (С ПАГИНАЦИЕЙ) ===
-@dp.callback_query(F.data.startswith("admin_users"))
-async def admin_users(callback: types.CallbackQuery):
+# === СПИСОК ЮЗЕРОВ (С ФИЛЬТРАМИ И ПАГИНАЦИЕЙ) ===
+USERS_PER_PAGE = 10
+
+def build_users_query(filter_type: str):
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    if filter_type == "active":
+        return "SELECT user_id, username, full_name, sub_until, is_blocked FROM users WHERE is_blocked = 0 AND sub_until IS NOT NULL AND sub_until >= ?", (today,)
+    elif filter_type == "inactive":
+        return "SELECT user_id, username, full_name, sub_until, is_blocked FROM users WHERE is_blocked = 0 AND (sub_until IS NULL OR sub_until < ?)", (today,)
+    elif filter_type == "blocked":
+        return "SELECT user_id, username, full_name, sub_until, is_blocked FROM users WHERE is_blocked = 1", ()
+    else:
+        return "SELECT user_id, username, full_name, sub_until, is_blocked FROM users", ()
+
+def users_filter_menu(current: str = "all"):
+    def mark(f):
+        return "• " if current == f else ""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=thin(f"{mark('all')}Все"), callback_data="admin_users_all_0"),
+            InlineKeyboardButton(text=thin(f"{mark('active')}С подпиской"), callback_data="admin_users_active_0"),
+        ],
+        [
+            InlineKeyboardButton(text=thin(f"{mark('inactive')}Без подписки"), callback_data="admin_users_inactive_0"),
+            InlineKeyboardButton(text=thin(f"{mark('blocked')}Забаненные"), callback_data="admin_users_blocked_0"),
+        ],
+        [InlineKeyboardButton(text=thin("Назад в меню"), callback_data="admin_main")]
+    ])
+
+@dp.callback_query(F.data == "admin_users")
+async def admin_users_root(callback: types.CallbackQuery):
+    await callback.answer()
+    if callback.from_user.id != ADMIN_ID: return
+    await safe_edit_or_send(
+        callback.message,
+        "<b>👥 Список юзеров</b>\n\nВыбери фильтр:",
+        users_filter_menu("all")
+    )
+
+@dp.callback_query(F.data.regexp(r"^admin_users_(all|active|inactive|blocked)_\d+$"))
+async def admin_users_page(callback: types.CallbackQuery):
     await callback.answer()
     if callback.from_user.id != ADMIN_ID: return
 
-    page = 0
-    if callback.data.startswith("admin_users_"):
-        try:
-            page = int(callback.data.split("_")[2])
-        except Exception:
-            page = 0
+    parts = callback.data.split("_")
+    filter_type = parts[2]
+    try:
+        page = int(parts[3])
+    except Exception:
+        page = 0
 
-    per_page = 5
-    cur.execute("SELECT COUNT(*) FROM users")
+    base_query, params = build_users_query(filter_type)
+
+    count_query = "SELECT COUNT(*) FROM (" + base_query + ")"
+    cur.execute(count_query, params)
     total = cur.fetchone()[0]
 
     if total == 0:
-        return await safe_edit_or_send(callback.message, "❌ Пользователей нет.", admin_main_menu())
+        return await safe_edit_or_send(
+            callback.message,
+            f"<b>👥 Список юзеров</b>\n\nФильтр: <b>{filter_type}</b>\n\n❌ Пусто.",
+            users_filter_menu(filter_type)
+        )
 
-    max_page = max(0, (total - 1) // per_page)
+    max_page = max(0, (total - 1) // USERS_PER_PAGE)
     if page < 0: page = 0
     if page > max_page: page = max_page
 
-    offset = page * per_page
-    cur.execute("""
-        SELECT user_id, username, full_name, sub_until, is_blocked
-        FROM users
-        ORDER BY sub_until DESC
-        LIMIT ? OFFSET ?
-    """, (per_page, offset))
+    offset = page * USERS_PER_PAGE
+    cur.execute(base_query + " ORDER BY sub_until DESC LIMIT ? OFFSET ?", params + (USERS_PER_PAGE, offset))
     users = cur.fetchall()
 
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    text = f"<b>👥 Все юзеры</b> (стр. {page + 1}/{max_page + 1})\n\n"
+    titles = {
+        "all": "Все юзеры",
+        "active": "С подпиской",
+        "inactive": "Без подписки",
+        "blocked": "Забаненные",
+    }
+    text = f"<b>👥 {titles.get(filter_type, 'Юзеры')}</b>\nстр. {page + 1}/{max_page + 1} • всего: {total}\n\n"
     kb = []
 
     for u in users:
@@ -458,15 +503,17 @@ async def admin_users(callback: types.CallbackQuery):
 
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton(text=thin("<< Назад"), callback_data=f"admin_users_{page - 1}"))
+        nav.append(InlineKeyboardButton(text=thin("<< Назад"), callback_data=f"admin_users_{filter_type}_{page - 1}"))
     if page < max_page:
-        nav.append(InlineKeyboardButton(text=thin("Дальше >>"), callback_data=f"admin_users_{page + 1}"))
+        nav.append(InlineKeyboardButton(text=thin("Дальше >>"), callback_data=f"admin_users_{filter_type}_{page + 1}"))
     if nav:
         kb.append(nav)
 
+    kb.append([InlineKeyboardButton(text=thin("Фильтры"), callback_data="admin_users")])
     kb.append([InlineKeyboardButton(text=thin("Назад в меню"), callback_data="admin_main")])
 
     await safe_edit_or_send(callback.message, text, InlineKeyboardMarkup(inline_keyboard=kb))
+
 
 @dp.callback_query(F.data.regexp(r"^admin_user_\d+$"))
 async def admin_user_info(callback: types.CallbackQuery):
