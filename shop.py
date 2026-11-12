@@ -15,10 +15,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
-BOT_TOKEN = "8692336245:AAFKoqW0L4sXWf6dTjXYA8vMO3ariK-L_hc"
-ADMIN_ID = 8808258682
-SELLER_TG = "rscxr"
-SUPPORT_TG = "iserpentt"
+BOT_TOKEN = "9270651118:AAHL92pvFBw0JDOgiZ8s6v-F595kNJ7GbCM"
+ADMIN_ID = 9226515971
+SELLER_TG = "rscxl"
+SUPPORT_TG = "rscxl"
 # ======================
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -193,7 +193,7 @@ async def send_main_menu(target, is_edit: bool = False):
     """Отправляет главное меню: фото + подпись + кнопки. Если is_edit=True — пытается отредактировать."""
     caption = (
         "👋 <b>Добро пожаловать в магазин!</b>\n\n"
-        "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @rscxr\n\n"
+        "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @rscxl\n\n"
         "Выберите действие:"
     )
     photo_path = data_dir / "start.jpg"
