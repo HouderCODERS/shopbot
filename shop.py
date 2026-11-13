@@ -15,8 +15,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 # ===== НАСТРОЙКИ =====
-BOT_TOKEN = "9270651118:AAHL92pvFBw0JDOgiZ8s6v-F595kNJ7GbCM"
-ADMIN_ID = 9226515971
+BOT_TOKEN = "9265741085:AAFURbmi60RfBP441zIzZZ3B7F_Xwoe-ko0"
+ADMIN_ID = 766754815
 SELLER_TG = "rscxl"
 SUPPORT_TG = "rscxl"
 # ======================
