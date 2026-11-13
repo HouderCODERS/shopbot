@@ -35,6 +35,7 @@ class AdminState(StatesGroup):
     waiting_promo_limit = State()
     waiting_direct_msg = State()
     waiting_user_promo = State()
+    waiting_user_search = State()
 
 # === ТОНКИЙ ШРИФТ ДЛЯ КНОПОК ===
 def thin(text: str) -> str:
@@ -103,7 +104,6 @@ CREATE TABLE IF NOT EXISTS settings (
 )
 """)
 
-# АВТОМИГРАЦИЯ
 def ensure_column(table, column, coltype):
     cur.execute(f"PRAGMA table_info({table})")
     cols = [row[1] for row in cur.fetchall()]
@@ -191,7 +191,6 @@ async def safe_edit_or_send(message: types.Message, text: str, keyboard: InlineK
 
 
 async def send_main_menu(target, is_edit: bool = False):
-    """Отправляет главное меню: фото + подпись + кнопки. Если is_edit=True — пытается отредактировать."""
     caption = (
         "👋 <b>Добро пожаловать в магазин!</b>\n\n"
         "🎁 Чтобы получить <b>3 дня бесплатной подписки</b>, напишите @rscxl\n\n"
@@ -245,7 +244,7 @@ async def start(message: types.Message):
 
     await send_main_menu(message, is_edit=False)
 
-# === ВВОД ПРОМОКОДА (ПОЛЬЗОВАТЕЛЬ) ===
+# === ВВОД ПРОМОКОДА ===
 @dp.callback_query(F.data == "enter_promo")
 async def enter_promo_prompt(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -337,7 +336,7 @@ async def stars_buy(callback: types.CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=thin(f"Написать @{SELLER_TG}"), url=f"https://t.me/{SELLER_TG}")],[InlineKeyboardButton(text=thin("Назад"), callback_data="buy_stars")]])
     await safe_edit_or_send(callback.message, text, kb)
 
-# === ПРОМОКОДЫ (АДМИН) ===
+# === ПРОМОКОДЫ ===
 @dp.callback_query(F.data == "admin_promo_menu")
 async def admin_promo_menu(callback: types.CallbackQuery):
     await callback.answer()
@@ -410,7 +409,7 @@ async def admin_promo_stats(callback: types.CallbackQuery):
             
     await safe_edit_or_send(callback.message, text, InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=thin("Назад"), callback_data="admin_promo_menu")]]))
 
-# === СПИСОК ЮЗЕРОВ (С ФИЛЬТРАМИ И ПАГИНАЦИЕЙ) ===
+# === СПИСОК ЮЗЕРОВ ===
 USERS_PER_PAGE = 10
 
 def build_users_query(filter_type: str):
@@ -436,6 +435,7 @@ def users_filter_menu(current: str = "all"):
             InlineKeyboardButton(text=thin(f"{mark('inactive')}Без подписки"), callback_data="admin_users_inactive_0"),
             InlineKeyboardButton(text=thin(f"{mark('blocked')}Забаненные"), callback_data="admin_users_blocked_0"),
         ],
+        [InlineKeyboardButton(text=thin("Поиск по нику"), callback_data="admin_users_search")],
         [InlineKeyboardButton(text=thin("Назад в меню"), callback_data="admin_main")]
     ])
 
@@ -445,7 +445,7 @@ async def admin_users_root(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     await safe_edit_or_send(
         callback.message,
-        "<b>👥 Список юзеров</b>\n\nВыбери фильтр:",
+        "<b>👥 Список юзеров</b>\n\nВыбери фильтр или поиск:",
         users_filter_menu("all")
     )
 
@@ -520,28 +520,106 @@ async def admin_users_page(callback: types.CallbackQuery):
 
     await safe_edit_or_send(callback.message, text, InlineKeyboardMarkup(inline_keyboard=kb))
 
+# === ПОИСК ПО НИКУ (full_name) ===
+@dp.callback_query(F.data == "admin_users_search")
+async def admin_users_search_prompt(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    if callback.from_user.id != ADMIN_ID: return
+    await safe_edit_or_send(
+        callback.message,
+        "<b>🔎 Поиск по нику</b>\n\nВведи часть имени (например: <code>андр</code>):",
+        InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=thin("Отмена"), callback_data="admin_users")]
+        ])
+    )
+    await state.set_state(AdminState.waiting_user_search)
+
+@dp.message(AdminState.waiting_user_search)
+async def admin_users_search_process(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID: return
+    query = message.text.strip()
+    await state.clear()
+
+    if not query:
+        return await message.answer("❌ Пустой запрос.")
+
+    # Поиск по full_name (имя), без учёта регистра
+    cur.execute(
+        "SELECT user_id, full_name, username FROM users WHERE full_name LIKE ? COLLATE NOCASE ORDER BY full_name LIMIT 20",
+        (f"%{query}%",)
+    )
+    rows = cur.fetchall()
+
+    if not rows:
+        return await message.answer(
+            f"❌ По запросу <b>{query}</b> никого не найдено.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=thin("Повторить поиск"), callback_data="admin_users_search")],
+                [InlineKeyboardButton(text=thin("К списку"), callback_data="admin_users")],
+            ])
+        )
+
+    if len(rows) == 1:
+        return await admin_user_info_by_id(message, rows[0]['user_id'])
+
+    # Если несколько — показываем список
+    kb = []
+    for r in rows:
+        name = r['full_name'] or f"ID {r['user_id']}"
+        kb.append([InlineKeyboardButton(
+            text=thin(name),
+            callback_data=f"admin_user_{r['user_id']}"
+        )])
+    kb.append([InlineKeyboardButton(text=thin("Повторить поиск"), callback_data="admin_users_search")])
+    kb.append([InlineKeyboardButton(text=thin("К списку"), callback_data="admin_users")])
+
+    await message.answer(
+        f"<b>🔎 Найдено: {len(rows)}</b>\n\nВыбери юзера:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
+    )
+
+# === КАРТОЧКА ЮЗЕРА ===
+async def admin_user_info_by_id(target, user_id: int):
+    cur.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+    user = cur.fetchone()
+    if not user:
+        return await target.answer("❌ Не найден.")
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    sub = user['sub_until']
+    status = "✅ Активна" if sub and sub >= today else "❌ Истекла"
+    if user['is_blocked']: status = "🚫 Заблокирован"
+    text = (
+        f"<b>👤 Инфо о юзере</b>\n\n"
+        f"🔹 <b>Имя:</b> {user['full_name']}\n"
+        f"🔹 <b>Юзер:</b> @{user['username']}\n"
+        f"🔹 <b>ID:</b> <code>{user['user_id']}</code>\n"
+        f"🔹 <b>Подписка:</b> {sub if sub else 'Нет'} ({status})"
+    )
+    block_btn = InlineKeyboardButton(
+        text=thin("Разбанить" if user['is_blocked'] else "Забанить"),
+        callback_data=f"admin_toggleblock_{user_id}"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=thin("Продлить"), callback_data=f"admin_extend_{user_id}")],
+        [InlineKeyboardButton(text=thin("Забрать"), callback_data=f"admin_revoke_{user_id}")],
+        [block_btn, InlineKeyboardButton(text=thin("Написать"), callback_data=f"admin_writeto_{user_id}")],
+        [InlineKeyboardButton(text=thin("К списку"), callback_data="admin_users")]
+    ])
+
+    if hasattr(target, "edit_text"):
+        try:
+            await target.edit_text(text=text, reply_markup=kb)
+            return
+        except Exception:
+            pass
+    await target.answer(text=text, reply_markup=kb)
 
 @dp.callback_query(F.data.regexp(r"^admin_user_\d+$"))
 async def admin_user_info(callback: types.CallbackQuery):
     await callback.answer()
     if callback.from_user.id != ADMIN_ID: return
     user_id = int(callback.data.split("_")[2])
-    cur.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-    user = cur.fetchone()
-    if not user: return await safe_edit_or_send(callback.message, "❌ Не найден.", admin_main_menu())
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    sub = user['sub_until']
-    status = "✅ Активна" if sub and sub >= today else "❌ Истекла"
-    if user['is_blocked']: status = "🚫 Заблокирован"
-    text = f"<b>👤 Инфо о юзере</b>\n\n🔹 <b>Имя:</b> {user['full_name']}\n🔹 <b>Юзер:</b> @{user['username']}\n🔹 <b>ID:</b> <code>{user['user_id']}</code>\n🔹 <b>Подписка:</b> {sub if sub else 'Нет'} ({status})"
-    block_btn = InlineKeyboardButton(text=thin("Разбанить" if user['is_blocked'] else "Забанить"), callback_data=f"admin_toggleblock_{user_id}")
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=thin("Продлить"), callback_data=f"admin_extend_{user_id}")],
-        [InlineKeyboardButton(text=thin("Забрать"), callback_data=f"admin_revoke_{user_id}")],
-        [block_btn, InlineKeyboardButton(text=thin("Написать"), callback_data=f"admin_writeto_{user_id}")],
-        [InlineKeyboardButton(text=thin("Назад"), callback_data="admin_users")]
-    ])
-    await safe_edit_or_send(callback.message, text, kb)
+    await admin_user_info_by_id(callback.message, user_id)
 
 @dp.callback_query(F.data.startswith("admin_toggleblock_"))
 async def admin_toggleblock(callback: types.CallbackQuery):
@@ -555,7 +633,7 @@ async def admin_toggleblock(callback: types.CallbackQuery):
         cur.execute("UPDATE users SET is_blocked = ? WHERE user_id = ?", (new_val, user_id))
         conn.commit()
         await callback.answer("Забанен" if new_val else "Разбанен", show_alert=True)
-    await admin_user_info(callback)
+    await admin_user_info_by_id(callback.message, user_id)
 
 @dp.callback_query(F.data.startswith("admin_writeto_"))
 async def admin_writeto(callback: types.CallbackQuery, state: FSMContext):
@@ -614,7 +692,7 @@ async def admin_revoke(callback: types.CallbackQuery):
     try: await bot.send_message(user_id, "<b>❌ Подписка отменена администратором.</b>")
     except: pass
     await callback.answer("Забрано.", show_alert=True)
-    await admin_user_info(callback)
+    await admin_user_info_by_id(callback.message, user_id)
 
 @dp.callback_query(F.data == "admin_keygen")
 async def admin_keygen(callback: types.CallbackQuery, state: FSMContext):
